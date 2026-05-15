@@ -1,5 +1,9 @@
+*.log
+*.tmp
+*.cache
 *.zip
-.docx
+*.docx
+.cache/
 
 #.vscode/
 
@@ -12,11 +16,6 @@ package-lock.json
 .DS_Store
 Thumbs.db
 desktop.ini
-
-*.log
-*.tmp
-*.cache
-.cache/
 
 #p5/
 #lib/
