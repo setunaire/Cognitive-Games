@@ -3,6 +3,7 @@
 *.cache
 *.zip
 *.docx
+*.bat
 .cache/
 
 #.vscode/
