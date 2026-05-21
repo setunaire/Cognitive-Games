@@ -2,9 +2,9 @@
    Simon Task – PROTOTYPE
    =========================================================
    Levels:
-     1 – Text rectangles (LEFT/RIGHT), 2-choice, F/J keys
-     2 – Color squares (blue=left, red=right), 2-choice, F/J keys
-     3 – Text rectangles (LEFT/RIGHT/UP), 3-choice, F/J/Y keys
+     1 – Text rectangles (LEFT/RIGHT), 2-choice, Arrow keys
+     2 – Color squares (blue=left, red=right), 2-choice, Arrow keys
+     3 – Text rectangles (LEFT/RIGHT/UP), 3-choice, Arrow keys
    =========================================================
 */
 
@@ -39,8 +39,8 @@ const levelInstructions = [
 
 A colored square will appear on the LEFT or RIGHT side of the screen.
 
-Press F if the square is BLUE.
-Press J if the square is RED.
+Press ← (left arrow) if the square is BLUE.
+Press → (right arrow) if the square is RED.
 
 Ignore where the square appears — respond to the COLOR.
 
@@ -53,8 +53,8 @@ Press SPACE to start.`
 A rectangle will appear on the LEFT or RIGHT side of the screen.
 It will contain the word LEFT or RIGHT.
 
-Press F if the word says LEFT.
-Press J if the word says RIGHT.
+Press ← (left arrow) if the word says LEFT.
+Press → (right arrow) if the word says RIGHT.
 
 Ignore where the rectangle appears — respond to the WORD.
 
@@ -66,9 +66,9 @@ Press SPACE to start.`
 A rectangle will appear on the LEFT, RIGHT, TOP, or BOTTOM of the screen.
 It will contain the word LEFT, RIGHT, or UP.
 
-Press F if the word says LEFT.
-Press J if the word says RIGHT.
-Press Y if the word says UP.
+Press ← (left arrow) if the word says LEFT.
+Press → (right arrow) if the word says RIGHT.
+Press ↑ (up arrow) if the word says UP.
 
 Ignore where the rectangle appears — respond to the WORD.
 
@@ -88,53 +88,53 @@ Press SPACE to start.`
 const levels = [
   // Level 1:
   {
-    responseKeys: ['f', 'j'],
+    responseKeys: ['ArrowLeft', 'ArrowRight'],
     stimulusDuration: 1000,
     responseWindow: 1500,
     stimuli: [
-      { type: 'blueSquare', position: 'left',  meaning: 'left',  correctKey: 'f', count: 3 }, // congruent
-      { type: 'redSquare',  position: 'right', meaning: 'right', correctKey: 'j', count: 3 }, // congruent
-      { type: 'blueSquare', position: 'right', meaning: 'left',  correctKey: 'f', count: 3 }, // incongruent
-      { type: 'redSquare',  position: 'left',  meaning: 'right', correctKey: 'j', count: 3 }, // incongruent
+      { type: 'blueSquare', position: 'left',  meaning: 'left',  correctKey: 'ArrowLeft', count: 3 }, // congruent
+      { type: 'redSquare',  position: 'right', meaning: 'right', correctKey: 'ArrowRight', count: 3 }, // congruent
+      { type: 'blueSquare', position: 'right', meaning: 'left',  correctKey: 'ArrowLeft', count: 3 }, // incongruent
+      { type: 'redSquare',  position: 'left',  meaning: 'right', correctKey: 'ArrowRight', count: 3 }, // incongruent
     ]
   },
 
   // Level 2:
   {
-    responseKeys: ['f', 'j'],
+    responseKeys: ['ArrowLeft', 'ArrowRight'],
     stimulusDuration: 1200,
     responseWindow: 1500,
     stimuli: [
-      { type: 'LEFT',  position: 'left',  meaning: 'left',  correctKey: 'f', count: 3 }, // congruent
-      { type: 'RIGHT', position: 'right', meaning: 'right', correctKey: 'j', count: 3 }, // congruent
-      { type: 'LEFT',  position: 'right', meaning: 'left',  correctKey: 'f', count: 3 }, // incongruent
-      { type: 'RIGHT', position: 'left',  meaning: 'right', correctKey: 'j', count: 3 }, // incongruent
+      { type: 'LEFT',  position: 'left',  meaning: 'left',  correctKey: 'ArrowLeft', count: 3 }, // congruent
+      { type: 'RIGHT', position: 'right', meaning: 'right', correctKey: 'ArrowRight', count: 3 }, // congruent
+      { type: 'LEFT',  position: 'right', meaning: 'left',  correctKey: 'ArrowLeft', count: 3 }, // incongruent
+      { type: 'RIGHT', position: 'left',  meaning: 'right', correctKey: 'ArrowRight', count: 3 }, // incongruent
     ]
   },
 
   // Level 3:
   {
-    responseKeys: ['f', 'j', 'y'],
+    responseKeys: ['ArrowLeft', 'ArrowRight', 'ArrowUp'],
     stimulusDuration: 1200,
     responseWindow: 1800,
     stimuli: [
       // Congruent trials (position matches meaning)
-      { type: 'LEFT',  position: 'left',  meaning: 'left',  correctKey: 'f', count: 1 },
-      { type: 'RIGHT', position: 'right', meaning: 'right', correctKey: 'j', count: 1 },
-      { type: 'UP',    position: 'up',    meaning: 'up',    correctKey: 'y', count: 1 },
+      { type: 'LEFT',  position: 'left',  meaning: 'left',  correctKey: 'ArrowLeft', count: 1 },
+      { type: 'RIGHT', position: 'right', meaning: 'right', correctKey: 'ArrowRight', count: 1 },
+      { type: 'UP',    position: 'up',    meaning: 'up',    correctKey: 'ArrowUp', count: 1 },
       
       // Incongruent trials (each stimulus on all 4 positions except its congruent one)
-      { type: 'LEFT',  position: 'right', meaning: 'left',  correctKey: 'f', count: 1 },
-      { type: 'LEFT',  position: 'up',    meaning: 'left',  correctKey: 'f', count: 1 },
-      { type: 'LEFT',  position: 'down',  meaning: 'left',  correctKey: 'f', count: 1 },
+      { type: 'LEFT',  position: 'right', meaning: 'left',  correctKey: 'ArrowLeft', count: 1 },
+      { type: 'LEFT',  position: 'up',    meaning: 'left',  correctKey: 'ArrowLeft', count: 1 },
+      { type: 'LEFT',  position: 'down',  meaning: 'left',  correctKey: 'ArrowLeft', count: 1 },
       
-      { type: 'RIGHT', position: 'left',  meaning: 'right', correctKey: 'j', count: 1 },
-      { type: 'RIGHT', position: 'up',    meaning: 'right', correctKey: 'j', count: 1 },
-      { type: 'RIGHT', position: 'down',  meaning: 'right', correctKey: 'j', count: 1 },
+      { type: 'RIGHT', position: 'left',  meaning: 'right', correctKey: 'ArrowRight', count: 1 },
+      { type: 'RIGHT', position: 'up',    meaning: 'right', correctKey: 'ArrowRight', count: 1 },
+      { type: 'RIGHT', position: 'down',  meaning: 'right', correctKey: 'ArrowRight', count: 1 },
       
-      { type: 'UP',    position: 'left',  meaning: 'up',    correctKey: 'y', count: 1 },
-      { type: 'UP',    position: 'right', meaning: 'up',    correctKey: 'y', count: 1 },
-      { type: 'UP',    position: 'down',  meaning: 'up',    correctKey: 'y', count: 1 },
+      { type: 'UP',    position: 'left',  meaning: 'up',    correctKey: 'ArrowUp', count: 1 },
+      { type: 'UP',    position: 'right', meaning: 'up',    correctKey: 'ArrowUp', count: 1 },
+      { type: 'UP',    position: 'down',  meaning: 'up',    correctKey: 'ArrowUp', count: 1 },
       ]
   }
 ];
@@ -355,33 +355,31 @@ function handleFeedback() {
 /* ================= INPUT HANDLERS ================ */
 
 function keyPressed() {
-
-  if ([' ', 'f', 'F', 'j', 'J', 'y', 'Y'].includes(key)) {
-    // prevent any default behavior
-  }
-
   // Start level from instructions screen
   if (experimentState === STATES.LEVEL_INSTRUCTIONS && key === ' ') {
     startFixation();
-    return;
+    return false;
   }
 
   // Capture response during stimulus window
   if (experimentState === STATES.STIMULUS && !responseGiven) {
-    const k = key.toLowerCase();
     const validKeys = levels[currentLevel].responseKeys;
-    if (validKeys.includes(k)) {
-      finalizeTrial(k);
+    if (validKeys.includes(key)) {
+      finalizeTrial(key);
+      return false;
     }
   }
 
   // Export data at end screen
   if (experimentState === STATES.END && (key === 's' || key === 'S')) {
     exportCSV();
+    return false;
   }
 
-  // Prevent default to stop page scrolling on Space/F keys
-  return false;
+  // Prevent default for arrow keys and space
+  if ([' ', 'ArrowLeft', 'ArrowRight', 'ArrowUp'].includes(key)) {
+    return false;
+  }
 }
 
 /* =========== TRIAL FINALIZATION & LOGGING =========== */
