@@ -6,7 +6,7 @@
 *.bat
 .cache/
 
-#.vscode/
+.vscode/
 
 node_modules/
 npm-debug.log*
