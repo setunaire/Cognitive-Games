@@ -1,198 +1,74 @@
 /* =========================================================
-   Simon Task – PROTOTYPE
+   Simon Task – FINAL DESIGN PLAN IMPLEMENTATION
    =========================================================
    Levels:
-     1 – Text rectangles (LEFT/RIGHT), 2-choice, Arrow keys
-     2 – Color squares (blue=left, red=right), 2-choice, Arrow keys
-     3 – Text rectangles (LEFT/RIGHT/UP), 3-choice, Arrow keys
+     1 – Text rectangles (LEFT/RIGHT), 2-choice, numpad keys 4 and 6
+     2 – Text rectangles (LEFT/RIGHT/UP/DOWN), 4-choice, numpad keys 4, 6, 8, and 2
+     3 – Text rectangles (LEFT/RIGHT/UP/DOWN), 4-choice, numpad keys 4, 6, 8, and 2, answer based on text or position according to the color of the stimulus
    =========================================================
 */
 
-/* ==================== CONFIG ==================== */
+/* ============ CONFIGURATION & CONSTANTS =========== */
 
-const CANVAS_BG = 'rgb(235,235,235)';
-
-const FIXATION_MIN = 500;
-const FIXATION_MAX = 1000;
-
-const FEEDBACK_DURATION = 750;
-
-const TOTAL_LEVELS = 3;
-const TRIALS_PER_LEVEL = 12;
-
-// Stimulus dimensions
-const RECT_W = 160;
-const RECT_H = 80;
-const SQUARE_SIZE = 120;
-
-// Distance from center to stimulus (horizontal/vertical offset)
-const STIMULUS_OFFSET = 250;
-
-const FIXATION_SIZE = 60;
-const FEEDBACK_SIZE = 30;
-const INSTRUCTION_SIZE = 30;
-
-// LEVEL INSTRUCTIONS
-
-const levelInstructions = [
-`Level 1
-
-A colored square will appear on the LEFT or RIGHT side of the screen.
-
-Press ← (left arrow) if the square is BLUE.
-Press → (right arrow) if the square is RED.
-
-Ignore where the square appears — respond to the COLOR.
-
-Press SPACE to start.`
-
-,
-
-`Level 2
-
-A rectangle will appear on the LEFT or RIGHT side of the screen.
-It will contain the word LEFT or RIGHT.
-
-Press ← (left arrow) if the word says LEFT.
-Press → (right arrow) if the word says RIGHT.
-
-Ignore where the rectangle appears — respond to the WORD.
-
-Press SPACE to start.`
-,
-
-`Level 3
-
-A rectangle will appear on the LEFT, RIGHT, TOP, or BOTTOM of the screen.
-It will contain the word LEFT, RIGHT, or UP.
-
-Press ← (left arrow) if the word says LEFT.
-Press → (right arrow) if the word says RIGHT.
-Press ↑ (up arrow) if the word says UP.
-
-Ignore where the rectangle appears — respond to the WORD.
-
-Press SPACE to start.`
-];
-
-// LEVEL DEFINITIONS
-/*
-  Each stimulus entry:
-    type         – identifier used in drawStimulus()
-    position     – 'left' | 'right' | 'up'  (where it appears on screen)
-    meaning      – 'left' | 'right' | 'up'  (what it instructs / represents)
-    correctKey   – which key is correct
-    count        – how many times this stimulus appears per level
-*/
-
-const levels = [
-  // Level 1:
-  {
-    responseKeys: ['ArrowLeft', 'ArrowRight'],
-    stimulusDuration: 1000,
-    responseWindow: 1500,
-    stimuli: [
-      { type: 'blueSquare', position: 'left',  meaning: 'left',  correctKey: 'ArrowLeft', count: 3 }, // congruent
-      { type: 'redSquare',  position: 'right', meaning: 'right', correctKey: 'ArrowRight', count: 3 }, // congruent
-      { type: 'blueSquare', position: 'right', meaning: 'left',  correctKey: 'ArrowLeft', count: 3 }, // incongruent
-      { type: 'redSquare',  position: 'left',  meaning: 'right', correctKey: 'ArrowRight', count: 3 }, // incongruent
+const CONFIG = {
+  canvasBg: '#ebebeb',
+  colors: { fixation: '#000000', text: '#000000', orangeCard: '#ffb400', whiteCard: '#ffffff' },
+  sizes: { rectW: 160, rectH: 80, offset: 250, fixation: 60, text: 30 },
+  timings: { fixationMin: 500, fixationMax: 1000 },
+  // Numpad mappings
+  validKeys: ['4', '6', '8', '2'],
+  keys: { left: '4', up: '8', right: '6', down: '2' },
+  // Experimental design parameters (Trials, Deadline in ms, % Congruent)
+  levelsParams: {
+    1: [
+      { trials: 3, deadline: 1100, pCongruent: 1 },
+      { trials: 10, deadline: 1100, pCongruent: 0.90 },
+      { trials: 10, deadline: 1000,  pCongruent: 0.80 },
+      { trials: 10, deadline: 1000,  pCongruent: 0.70 }
+    ],
+    2: [
+      { trials: 10, deadline: 1100, pCongruent: 1 },
+      { trials: 10, deadline: 1000, pCongruent: 0.90 },
+      { trials: 5, deadline: 900, pCongruent: 0.80 },
+      { trials: 10, deadline: 900, pCongruent: 0.70 }
+    ],
+    3: [
+      { trials: 5, deadline: 1000, pCongruent: 0.80 },
+      { trials: 10, deadline: 900, pCongruent: 0.70 },
+      { trials: 10, deadline: 900, pCongruent: 0.60 },
+      { trials: 8, deadline: 800, pCongruent: 0.50 }
     ]
-  },
-
-  // Level 2:
-  {
-    responseKeys: ['ArrowLeft', 'ArrowRight'],
-    stimulusDuration: 1200,
-    responseWindow: 1500,
-    stimuli: [
-      { type: 'LEFT',  position: 'left',  meaning: 'left',  correctKey: 'ArrowLeft', count: 3 }, // congruent
-      { type: 'RIGHT', position: 'right', meaning: 'right', correctKey: 'ArrowRight', count: 3 }, // congruent
-      { type: 'LEFT',  position: 'right', meaning: 'left',  correctKey: 'ArrowLeft', count: 3 }, // incongruent
-      { type: 'RIGHT', position: 'left',  meaning: 'right', correctKey: 'ArrowRight', count: 3 }, // incongruent
-    ]
-  },
-
-  // Level 3:
-  {
-    responseKeys: ['ArrowLeft', 'ArrowRight', 'ArrowUp'],
-    stimulusDuration: 1200,
-    responseWindow: 1800,
-    stimuli: [
-      // Congruent trials (position matches meaning)
-      { type: 'LEFT',  position: 'left',  meaning: 'left',  correctKey: 'ArrowLeft', count: 1 },
-      { type: 'RIGHT', position: 'right', meaning: 'right', correctKey: 'ArrowRight', count: 1 },
-      { type: 'UP',    position: 'up',    meaning: 'up',    correctKey: 'ArrowUp', count: 1 },
-      
-      // Incongruent trials (each stimulus on all 4 positions except its congruent one)
-      { type: 'LEFT',  position: 'right', meaning: 'left',  correctKey: 'ArrowLeft', count: 1 },
-      { type: 'LEFT',  position: 'up',    meaning: 'left',  correctKey: 'ArrowLeft', count: 1 },
-      { type: 'LEFT',  position: 'down',  meaning: 'left',  correctKey: 'ArrowLeft', count: 1 },
-      
-      { type: 'RIGHT', position: 'left',  meaning: 'right', correctKey: 'ArrowRight', count: 1 },
-      { type: 'RIGHT', position: 'up',    meaning: 'right', correctKey: 'ArrowRight', count: 1 },
-      { type: 'RIGHT', position: 'down',  meaning: 'right', correctKey: 'ArrowRight', count: 1 },
-      
-      { type: 'UP',    position: 'left',  meaning: 'up',    correctKey: 'ArrowUp', count: 1 },
-      { type: 'UP',    position: 'right', meaning: 'up',    correctKey: 'ArrowUp', count: 1 },
-      { type: 'UP',    position: 'down',  meaning: 'up',    correctKey: 'ArrowUp', count: 1 },
-      ]
   }
-];
-
-/* ===================== STATES ===================== */
-
-const STATES = {
-  LEVEL_INSTRUCTIONS: 'level_instructions',
-  FIXATION:           'fixation',
-  STIMULUS:           'stimulus',
-  FEEDBACK:           'feedback',
-  END:                'end'
 };
 
-let experimentState = STATES.LEVEL_INSTRUCTIONS;
+const STATES = { METADATA: 'metadata', MENU: 'menu', INSTRUCTIONS: 'instructions', FIXATION: 'fixation', STIMULUS: 'stimulus', END_PHASE: 'end_phase', LEVEL_FEEDBACK: 'LEVEL_FEEDBACK' };
+const STIMULUS_TYPES = ['LEFT', 'RIGHT', 'UP', 'DOWN'];
+const POSITIONS = ['left', 'right', 'up', 'down'];
 
 /* =============== RUNTIME VARIABLES =============== */
-
-let startTime           = null;
-let currentLevel        = 0;
-let currentTrialIndex   = 0;
-let globalTrialIndex    = 0;
-
-let fixationStartTime   = null;
-let fixationDuration    = null;
-
-let stimulusOnsetTime   = null;
-let stimulusVisible     = false;
-let responseGiven       = false;
-
-let feedbackText        = '';
-let feedbackColor       = 0;
-let feedbackStartTime   = null;
-
+let currentState = STATES.MENU;
+let currentPhase = null; // 'Assessment' or 'Familiarization'
+let metadata = { experimentVersion: '', experimentID: '', sessionID: '', participantID: '' };
+// UI Elements for Metadata
+let inputExpVer, inputExpId, inputSessId, inputPartId, btnSubmitMeta;
+// Trial & Progression Tracking
+let levelOrder = [];
+let currentLevelIndex = 0;
+let globalTrialIndex = 0;
+let levelTrialIndex = 0;
+let stageTrialIndex = 0;
 let trials = [];
-let logs   = [];
-
-/* ========== TRIAL GENERATOR (CONTROLLED RANDOMIZATION) ========== */
-
-function generateTrialsForLevel(level, levelIndex) {
-  let levelTrials = [];
-
-  level.stimuli.forEach(stim => {
-    for (let i = 0; i < stim.count; i++) {
-      levelTrials.push({
-        level:      levelIndex + 1,
-        type:       stim.type,
-        position:   stim.position,   // where it appears
-        meaning:    stim.meaning,    // what it means / instructs
-        correctKey: stim.correctKey,
-        // congruent = position matches meaning
-        trialClass: stim.position === stim.meaning ? 'congruent' : 'incongruent'
-      });
-    }
-  });
-
-  return shuffle(levelTrials);
-}
+let logs = [];
+let lastLevelScore = 0;
+let lastLevelTotalTrials = 0;
+// Timing & Interaction Flags
+let sessionStartUtc, sessionStartTimeMs;
+let trialStartMs, fixationOnsetMs, fixationDurationMs;
+let stimulusOnsetMs, stimulusOffsetMs;
+let responseGiven = false;
+let invalidKeysBuffer = [];
+let previousRule = null;
+let trialsSinceSwitch = 0;
 
 /* ===================== SETUP ===================== */
 
@@ -201,322 +77,391 @@ function setup() {
   textAlign(CENTER, CENTER);
   textFont('monospace');
 
-  // Pre-generate all trials for all levels
-  levels.forEach((level, idx) => {
-    trials = trials.concat(generateTrialsForLevel(level, idx));
-  });
-
-  startExperiment();
+  setupUIElements();
 }
 
 /* =================== DRAW LOOP =================== */
 
 function draw() {
-  background(CANVAS_BG);
+  background(CONFIG.canvasBg);
+  
+  // State Machine for Rendering
+  switch (currentState) {
 
-  switch (experimentState) {
-
-    case STATES.LEVEL_INSTRUCTIONS:
-      drawLevelInstructions();
+    case STATES.MENU:
+      fill(0); textSize(30);
+      text("MENU", width/2, height/2 - 80);
+      textSize(20);
       break;
 
+    case STATES.METADATA:
+      fill(0); textSize(20);
+      text("Enter Metadata:", width/2, height/2 - 120);
+      break;
+      
+    case STATES.INSTRUCTIONS:
+      fill(0); textSize(24);
+      text(getInstructionText(levelOrder[currentLevelIndex]), width/2, height/2);
+      break;
+      
     case STATES.FIXATION:
       drawFixation();
-      handleFixation();
+      // Check if fixation duration has elapsed
+      if (millis() - fixationOnsetMs >= fixationDurationMs) {
+        startStimulus();
+      }
       break;
-
+      
     case STATES.STIMULUS:
-      drawFixation();       // fixation stays visible behind stimulus
+      drawFixation();
       drawStimulus();
-      handleStimulus();
+      handleStimulusTimeout();
       break;
 
-    case STATES.FEEDBACK:
-      drawFeedback();
-      handleFeedback();
+    case STATES.LEVEL_FEEDBACK:
+      fill(0); textSize(30);
+      text(`Level Complete!\n\nScore: ${lastLevelScore} / ${lastLevelTotalTrials}\n\nPress SPACE to continue`, width/2, height/2);
       break;
-
-    case STATES.END:
-      drawEndScreen();
+      
+    case STATES.END_PHASE:
+      fill(0); textSize(30);
+      text("Phase Complete.", width/2, height/2-60);
       break;
   }
 }
 
-/* ================= DRAW FUNCTIONS ================ */
+/* ======================== INPUT HANDLERS ======================== */
 
-function drawLevelInstructions() {
-  fill(0);
-  noStroke();
-  textSize(INSTRUCTION_SIZE);
-  text(levelInstructions[currentLevel], width / 2, height / 2);
+function keyPressed() {
+  // Extract key to handle raw string and normalize Arrow Keys if NumLock is off
+  let k = key;
+  if (keyCode === 100 || key === 'ArrowLeft') k = '4';
+  if (keyCode === 102 || key === 'ArrowRight') k = '6';
+  if (keyCode === 104 || key === 'ArrowUp') k = '8';
+  if (keyCode === 98 || key === 'ArrowDown') k = '2';
+  k = k.replace('Numpad', '');
+
+  if (currentState === STATES.LEVEL_FEEDBACK && key === ' ') {
+    currentLevelIndex++;
+    if (currentLevelIndex >= levelOrder.length) {
+      currentState = STATES.END_PHASE;
+      showEndUI();
+    } else { 
+      levelTrialIndex = 0; stageTrialIndex = 0;
+      trials = generateTrials(levelOrder[currentLevelIndex]); 
+      previousRule = null;
+      currentState = STATES.INSTRUCTIONS; 
+    }
+    return; 
+  }
+
+  if (currentState === STATES.INSTRUCTIONS && key === ' ') {
+    startFixation();
+  } 
+  else if (currentState === STATES.STIMULUS && !responseGiven) {
+    if (CONFIG.validKeys.includes(k)) {
+      finalizeTrial(k);
+    } else {
+      invalidKeysBuffer.push(k.toUpperCase());
+    }
+  }
 }
 
-function drawFixation() {
-  fill('rgb(255, 180, 0)');
-  noStroke();
-  textSize(FIXATION_SIZE);
-  text('+', width / 2, height / 2);
+/* ================== UI DOM SETUP ================== */
+function setupUIElements() {
+  let cx = windowWidth / 2;
+  let cy = windowHeight / 2;
+
+  // MENU
+  btnFamiliarization = createButton('Familiarization');
+  btnFamiliarization.position(cx - 150, cy - 20);
+  btnFamiliarization.size(140, 40);
+  btnFamiliarization.mousePressed(() => {
+    currentPhase = 'Familiarization';
+    alert("Familiarization is currently empty.");
+  });
+
+  btnAssessment = createButton('Assessment');
+  btnAssessment.position(cx + 10, cy - 20);
+  btnAssessment.size(140, 40);
+  btnAssessment.mousePressed(() => {
+    currentPhase = 'Assessment';
+    hideMenuUI();
+    showMetadataUI();
+    currentState = STATES.METADATA;
+  });
+
+  // METADATA
+  inputExpId = createInput(''); inputExpId.position(cx - 80, cy - 60); inputExpId.attribute('placeholder', 'Experiment ID');
+  inputExpVer = createInput(''); inputExpVer.position(cx - 80, cy - 30); inputExpVer.attribute('placeholder', 'Experiment Version');
+  inputSessId = createInput(''); inputSessId.position(cx - 80, cy); inputSessId.attribute('placeholder', 'Session ID');
+  inputPartId = createInput(''); inputPartId.position(cx - 80, cy + 30); inputPartId.attribute('placeholder', 'Participant ID');
+  
+  btnSubmitMeta = createButton('Start Experiment'); 
+  btnSubmitMeta.position(cx - 80, cy + 70);
+  btnSubmitMeta.size(160, 30);
+  btnSubmitMeta.mousePressed(() => {
+    metadata.experimentId = inputExpId.value();
+    metadata.experimentVersion = inputExpVer.value();
+    metadata.sessionId = inputSessId.value();
+    metadata.participantId = inputPartId.value() || '0';
+    
+    hideMetadataUI();
+    
+    if (metadata.participantId === '1') { levelOrder = [1, 2, 3]; } 
+    else { randomSeed(parseInt(metadata.participantId) || 0); levelOrder = shuffleArray([1, 2, 3]); }
+    
+    startPhase();
+  });
+
+  // END PHASE
+  btnSaveCSV = createButton('Save Logs (CSV)');
+  btnSaveCSV.position(cx - 150, cy);
+  btnSaveCSV.size(140, 40);
+  btnSaveCSV.mousePressed(() => exportCSV());
+
+  btnReturnMenu = createButton('Return to Menu');
+  btnReturnMenu.position(cx + 10, cy);
+  btnReturnMenu.size(140, 40);
+  btnReturnMenu.mousePressed(() => {
+    hideEndUI();
+    showMenuUI();
+    currentState = STATES.MENU;
+  });
+
+  // Initially hide elements
+  hideMetadataUI();
+  hideEndUI();
+}
+
+function showMenuUI() { btnFamiliarization.show(); btnAssessment.show(); }
+function hideMenuUI() { btnFamiliarization.hide(); btnAssessment.hide(); }
+function showMetadataUI() { inputExpId.show(); inputExpVer.show(); inputSessId.show(); inputPartId.show(); btnSubmitMeta.show(); }
+function hideMetadataUI() { inputExpId.hide(); inputExpVer.hide(); inputSessId.hide(); inputPartId.hide(); btnSubmitMeta.hide(); }
+function showEndUI() { btnSaveCSV.show(); btnReturnMenu.show(); }
+function hideEndUI() { btnSaveCSV.hide(); btnReturnMenu.hide(); }
+
+/* ================= TRIAL GENERATION & LOGIC FUNCTIONS ================ */
+
+function generateTrials(levelId) {
+  let levelTrials = [];
+  let stages = CONFIG.levelsParams[levelId];
+  
+  // Generate trials for each stage within the level
+  stages.forEach((stage, index) => {
+    let stageTrials = [];
+    let numCongruent = Math.round(stage.trials * stage.pCongruent);
+    let numIncongruent = stage.trials - numCongruent;
+    
+    for (let i = 0; i < numCongruent; i++) stageTrials.push(generateSingleTrial(levelId, true, stage, index));
+    for (let i = 0; i < numIncongruent; i++) stageTrials.push(generateSingleTrial(levelId, false, stage, index));
+    
+    // Shuffle trials within the stage, then append to the level's trial list
+    levelTrials = levelTrials.concat(shuffleArray(stageTrials));
+  });
+  
+  return levelTrials;
+}
+
+function generateSingleTrial(levelId, isCongruent, stageData, stageIndex) {
+  let word, pos, rule, color, correctKey;
+  
+  // Level 1 uses only Left/Right. Levels 2 & 3 use all 4 directions.
+  let wordPool = levelId === 1 ? ['LEFT', 'RIGHT'] : STIMULUS_TYPES;
+  let posPool = levelId === 1 ? ['left', 'right'] : POSITIONS;
+
+  word = random(wordPool);
+  
+  if (isCongruent) {
+    pos = word.toLowerCase();
+  } else {
+    // Pick a random position that does NOT match the word
+    let availablePos = posPool.filter(p => p !== word.toLowerCase());
+    pos = random(availablePos);
+  }
+
+  // Level 3 introduces Task Switching (Color/Rule)
+  if (levelId === 3) {
+    rule = random(['text', 'position']);
+    color = rule === 'text' ? CONFIG.colors.whiteCard : CONFIG.colors.orangeCard;
+    correctKey = rule === 'text' ? getCorrectKey(word) : getCorrectKey(pos);
+  } else {
+    rule = 'text';
+    color = CONFIG.colors.whiteCard;
+    correctKey = getCorrectKey(word);
+  }
+
+  return {
+    level: levelId,
+    stage: stageIndex + 1,
+    deadline: stageData.deadline,
+    word: word,
+    position: pos,
+    color: color,
+    rule: rule,
+    correctKey: correctKey,
+    trialClass: isCongruent ? 'congruent' : 'incongruent'
+  };
+}
+
+/* ================= EXECUTION & RENDERING HELPERS ================ */
+
+function startPhase() {
+  logs = []; 
+  currentLevelIndex = 0; globalTrialIndex = 0; levelTrialIndex = 0; stageTrialIndex = 0;
+  sessionStartUtc = new Date().toISOString(); 
+  sessionStartTimeMs = millis();
+  trials = generateTrials(levelOrder[currentLevelIndex]); 
+  
+  previousRule = null;
+  trialsSinceSwitch = 0;
+  
+  currentState = STATES.INSTRUCTIONS; 
+}
+
+function startFixation() { 
+  trialStartMs = Math.round(millis());
+  invalidKeysBuffer = [];
+  responseGiven = false;
+  
+  fixationOnsetMs = Math.round(millis()); 
+  fixationDurationMs = Math.round(random(CONFIG.timings.fixationMin, CONFIG.timings.fixationMax)); 
+  
+  globalTrialIndex++;
+  levelTrialIndex++;
+  stageTrialIndex++;
+  
+  currentState = STATES.FIXATION; 
+}
+
+function startStimulus() {
+  stimulusOnsetMs = Math.round(millis());
+  currentState = STATES.STIMULUS;
+}
+
+function drawFixation() { 
+  fill(CONFIG.colors.fixation); noStroke(); 
+  textSize(CONFIG.sizes.fixation); text('+', width/2, height/2); 
 }
 
 function drawStimulus() {
-  if (!stimulusVisible) return;
+  const trial = trials[levelTrialIndex - 1]; 
+  let sx = width/2, sy = height/2;
+  
+  if (trial.position === 'left') sx -= CONFIG.sizes.offset;
+  if (trial.position === 'right') sx += CONFIG.sizes.offset;
+  if (trial.position === 'up') sy -= CONFIG.sizes.offset;
+  if (trial.position === 'down') sy += CONFIG.sizes.offset;
 
-  const trial = trials[globalTrialIndex];
-  const cx = width  / 2;
-  const cy = height / 2;
-
-  // Compute stimulus center based on position
-  let sx, sy;
-  switch (trial.position) {
-    case 'left':  sx = cx - STIMULUS_OFFSET; sy = cy;                     break;
-    case 'right': sx = cx + STIMULUS_OFFSET; sy = cy;                     break;
-    case 'up':    sx = cx;                   sy = cy - STIMULUS_OFFSET;   break;
-    case 'down':  sx = cx;                   sy = cy + STIMULUS_OFFSET;   break;   
-  }
-
-  rectMode(CENTER);
-
-  switch (trial.type) {
-
-    // Level 1: Color squares
-    case 'blueSquare':
-      fill('#1a6fff');
-      noStroke();
-      rect(sx, sy, SQUARE_SIZE, SQUARE_SIZE);
-      break;
-
-    case 'redSquare':
-      fill('#ff3030');
-      noStroke();
-      rect(sx, sy, SQUARE_SIZE, SQUARE_SIZE);
-      break;
-
-    // Level 2 & 3: Text rectangles
-    case 'LEFT':
-    case 'RIGHT':
-    case 'UP':
-      fill('rgb(255, 180, 0)');
-      noStroke();
-      rect(sx, sy, RECT_W, RECT_H, 6);   // 6px rounded corners
-      fill('#000000');
-      textSize(30);
-      text(trial.type, sx, sy);
-      break;
-
-  }
+  rectMode(CENTER); fill(trial.color); stroke(0); strokeWeight(2);
+  rect(sx, sy, CONFIG.sizes.rectW, CONFIG.sizes.rectH, 6);
+  fill(CONFIG.colors.text); noStroke(); textSize(CONFIG.sizes.text); 
+  text(trial.word, sx, sy);
 }
 
-function drawFeedback() {
-  fill(feedbackColor);
-  noStroke();
-  textSize(FEEDBACK_SIZE);
-  text(feedbackText, width / 2, height / 2);
-}
-
-function drawEndScreen() {
-  fill('#000000');
-  noStroke();
-  textSize(FEEDBACK_SIZE);
-  text('Experiment finished.\nPress S to save data.', width / 2, height / 2);
-}
-
-/* ================= STATE HANDLERS ================ */
-
-function handleFixation() {
-  if (millis() - fixationStartTime >= fixationDuration) {
-    stimulusOnsetTime = millis();
-    stimulusVisible   = true;
-    responseGiven     = false;
-    experimentState   = STATES.STIMULUS;
-  }
-}
-
-function handleStimulus() {
-  const level   = levels[currentLevel];
-  const elapsed = millis() - stimulusOnsetTime;
-
-  // Stimulus disappears after stimulusDuration
-  if (elapsed >= level.stimulusDuration) {
-    stimulusVisible = false;
-  }
-
-  // Response window ends → timeout
-  if (elapsed >= level.responseWindow) {
+function handleStimulusTimeout() {
+  const trial = trials[levelTrialIndex - 1];
+  if (millis() - stimulusOnsetMs >= trial.deadline && !responseGiven) {
     finalizeTrial(null);
   }
 }
 
-function handleFeedback() {
-  if (millis() - feedbackStartTime >= FEEDBACK_DURATION) {
-    advanceTrial();
-  }
-}
-
-/* ================= INPUT HANDLERS ================ */
-
-function keyPressed() {
-  // Start level from instructions screen
-  if (experimentState === STATES.LEVEL_INSTRUCTIONS && key === ' ') {
-    startFixation();
-    return false;
-  }
-
-  // Capture response during stimulus window
-  if (experimentState === STATES.STIMULUS && !responseGiven) {
-    const validKeys = levels[currentLevel].responseKeys;
-    if (validKeys.includes(key)) {
-      finalizeTrial(key);
-      return false;
-    }
-  }
-
-  // Export data at end screen
-  if (experimentState === STATES.END && (key === 's' || key === 'S')) {
-    exportCSV();
-    return false;
-  }
-
-  // Prevent default for arrow keys and space
-  if ([' ', 'ArrowLeft', 'ArrowRight', 'ArrowUp'].includes(key)) {
-    return false;
-  }
-}
-
-/* =========== TRIAL FINALIZATION & LOGGING =========== */
-
 function finalizeTrial(responseKey) {
-  if (responseGiven) return;
   responseGiven = true;
+  stimulusOffsetMs = Math.round(millis());
+  const trial = trials[levelTrialIndex - 1];
+  
+  let rt = responseKey ? (stimulusOffsetMs - stimulusOnsetMs) : null;
+  let isCorrect = responseKey === trial.correctKey;
+  let accuracy = isCorrect ? 1 : 0;
+  let isTimeout = !responseKey ? 1 : 0;
+  let outcome = isTimeout ? 'timeout' : (isCorrect ? 'correct' : 'incorrect');
+  let anticipatory = rt !== null && rt < 150;
+  let stimColName = trial.color === CONFIG.colors.orangeCard ? 'orange' : 'white';
 
-  const trial = trials[globalTrialIndex];
-  const level = levels[currentLevel];
-  const now   = millis();
-
-  // Determine feedback & correctness
-  let result, feedback, correct;
-
-  if (responseKey === null) {
-    result = 'Miss';
-    feedback = 'Timeout';
-    correct  = 0;
-  } else if (responseKey === trial.correctKey) {
-    result = 'Hit';
-    feedback = 'Correct';
-    correct  = 1;
+  let taskSwitch = false;
+  if (trial.level === 3) {
+    if (previousRule && previousRule !== trial.rule) {
+      taskSwitch = true;
+      trialsSinceSwitch = 0;
+    } else if (previousRule === trial.rule) {
+      trialsSinceSwitch++;
+    }
+    previousRule = trial.rule;
   } else {
-    result = 'WrongKey';
-    feedback = 'Incorrect';
-    correct  = 0;
+    previousRule = null;
+    trialsSinceSwitch = 0;
   }
 
-  // Feedback display color
-  feedbackText  = feedback;
-  feedbackColor = '#000000';
-   
-
-  // Log entry
   logs.push({
-    startTime,
-    level: trial.level,
-
-    fixationStartTime,
-    fixationDuration:   round(fixationDuration),
-
-    trialIndex:         currentTrialIndex + 1,
-    trialIndexGlobal:   globalTrialIndex  + 1,
-
-    trialClass:         trial.trialClass,          // congruent | incongruent
-    stimulusType:       trial.type,                // LEFT | RIGHT | UP | blueSquare | redSquare
-    stimulusPosition:   trial.position,            // left | right | up | down  (where it appeared)
-    stimulusMeaning:    trial.meaning,             // left | right | up  (what it meant)
-
-    stimulusOnsetTime:  round(stimulusOnsetTime),
-    stimulusDuration:   level.stimulusDuration,
-    responseWindow:     level.responseWindow,
-
-    responseTime:       responseKey ? round(now)                        : null,
-    reactionTime:       responseKey ? round(now - stimulusOnsetTime)    : null,
-
-    responseKey:        responseKey ?? 'none',
-    correctKey:         trial.correctKey,
-
-    result,
-    feedback,
-    correct
+    level: trial.level, stage: trial.stage,
+    trialIndexGlobal: globalTrialIndex, trialIndexLevel: levelTrialIndex, trialIndexStage: stageTrialIndex,
+    trialClass: trial.trialClass, stimulusText: trial.word, stimulusPosition: trial.position, stimulusColor: stimColName,
+    ruleType: trial.level === 3 ? trial.rule : '',
+    taskSwitch: trial.level === 3 ? taskSwitch : '', trialsSinceLastSwitch: trial.level === 3 ? trialsSinceSwitch : '',
+    trialStartMs: trialStartMs, fixationOnsetMs: fixationOnsetMs, fixationDurationMs: fixationDurationMs,
+    stimulusOnsetMs: stimulusOnsetMs, stimulusOffsetMs: stimulusOffsetMs,
+    responseWindowMs: trial.deadline, reactionTimeMs: rt !== null ? rt : '',
+    correctResponse: trial.correctKey, userResponse: responseKey || '',
+    invalidKeysBeforeResponse: invalidKeysBuffer.length > 0 ? `[${invalidKeysBuffer.join(' ')}]` : `[]`,
+    accuracy: accuracy, timeout: isTimeout, responseOutcome: outcome, anticipatoryResponse: anticipatory
   });
 
-  feedbackStartTime = millis();
-  experimentState   = STATES.FEEDBACK;
+if (levelTrialIndex >= trials.length) {
+    let currentLevelLogs = logs.filter(log => log.level === trials[trials.length - 1].level);
+    lastLevelScore = currentLevelLogs.filter(log => log.accuracy === 1).length;
+    lastLevelTotalTrials = trials.length; 
+    currentState = STATES.LEVEL_FEEDBACK;
+} else {
+    startFixation();
+}
 }
 
-/* ============ TRIAL / LEVEL PROGRESSION ============ */
+/* ================== UTILITY FUNCTIONS ================== */
 
-function advanceTrial() {
-  globalTrialIndex++;
-  currentTrialIndex++;
+function getCorrectKey(target) {
+  let t = target.toLowerCase();
+  return CONFIG.keys[t] || null;
+}
 
-  // Level complete
-  if (currentTrialIndex >= TRIALS_PER_LEVEL) {
-    currentLevel++;
-    currentTrialIndex = 0;
+function getInstructionText(levelId) {
+  if (levelId === 1) return `Level 1: Basic Simon\nA word (LEFT or RIGHT) will appear.\nPress Numpad 4 for LEFT, Numpad 6 for RIGHT.\n\nIgnore WHERE it appears. Respond to the WORD.\n\nPress SPACE to start.`;
+  if (levelId === 2) return `Level 2: Expanded Simon\nA word (LEFT, RIGHT, UP, DOWN) will appear.\nUse Numpad 4(L), 6(R), 8(U), 2(D).\n\nIgnore WHERE it appears. Respond to the WORD.\n\nPress SPACE to start.`;
+  if (levelId === 3) return `Level 3: Simon + Task Switching\nA card with a word appears.\nIf WHITE, respond to WORD.\nIf ORANGE, respond to POSITION.\n\nPress SPACE to start.`;
+}
 
-    if (currentLevel < TOTAL_LEVELS) {
-      experimentState = STATES.LEVEL_INSTRUCTIONS;
-      return;
-    }
+function shuffleArray(arr) {
+  let shuffled = [...arr]; // Avoid mutating original array directly
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(random(i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
-
-  // All levels complete
-  if (currentLevel >= TOTAL_LEVELS) {
-    experimentState = STATES.END;
-    return;
-  }
-
-  startFixation();
+  return shuffled;
 }
 
-/* =============== EXPERIMENT CONTROL =============== */
-
-function startExperiment() {
-  startTime         = millis();
-  currentLevel      = 0;
-  currentTrialIndex = 0;
-  globalTrialIndex  = 0;
-  experimentState   = STATES.LEVEL_INSTRUCTIONS;
-}
-
-function startFixation() {
-  fixationStartTime = millis();
-  fixationDuration  = random(FIXATION_MIN, FIXATION_MAX);
-  stimulusVisible   = false;
-  experimentState   = STATES.FIXATION;
-}
-
-/* =================== UTILITIES =================== */
-
-function shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = floor(random(i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
-/* ================== DATA EXPORT ================== */
+/* ====================== DATA EXPORT ===================== */
 
 function exportCSV() {
-  if (logs.length === 0) return;
+  if (!logs.length) return;
+  
+  let sessionDurationMs = Math.round(millis() - sessionStartTimeMs);
 
-  const headers = Object.keys(logs[0]).join(',') + '\n';
-  const rows    = logs.map(row => Object.values(row).join(',')).join('\n');
-
-  const blob = new Blob([headers + rows], { type: 'text/csv' });
-  const url  = URL.createObjectURL(blob);
-
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = 'SimonTaskResults.csv';
-  a.click();
-
-  URL.revokeObjectURL(url);
+  let csvContent = `[SESSION METADATA]\n` +
+                   `experimentID,${metadata.experimentId}\n` +
+                   `experimentVersion,${metadata.experimentVersion}\n` +
+                   `sessionID,${metadata.sessionId}\n` +
+                   `participantID,${metadata.participantId}\n` +
+                   `phase,${currentPhase}\n` +
+                   `inputDevice,keyboard_numpad\n` +
+                   `sessionStartUTC,${sessionStartUtc}\n` +
+                   `sessionDurationMs,${sessionDurationMs}\n\n` +
+                   `[TRIAL DATA]\n`;
+  
+  csvContent += Object.keys(logs[0]).join(',') + '\n';
+  csvContent += logs.map(row => Object.values(row).join(',')).join('\n');
+  
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csvContent], { type: 'text/csv' }));
+  a.download = `SimonTask_${metadata.participantId}_${currentPhase}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
