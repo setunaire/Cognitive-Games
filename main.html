@@ -1,87 +1,254 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>6 Links Page</title>
-    <style>
-      
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cognitive Games — Launcher</title>
+  <style>
+    /* ---- Vazirmatn (bundled locally, used when Persian is selected) ---- */
+    @font-face {
+      font-family: 'Vazirmatn';
+      src: url('fonts/Vazirmatn-Regular.ttf') format('truetype');
+      font-weight: normal;
+    }
+    @font-face {
+      font-family: 'Vazirmatn';
+      src: url('fonts/Vazirmatn-Bold.ttf') format('truetype');
+      font-weight: bold;
+    }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #ebebeb;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
+    :root {
+      --bg: #F4F6F8;
+      --text: #212529;
+      --muted: #6C757D;
+      --accent: #3B5BDB;
+      --accent-dark: #364FC7;
+      --card-border: #DEE2E6;
+    }
 
-        /* Container */
-        .button-container {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            display: grid;
-            grid-template-columns: repeat(2, 1fr); /* 2 columns */
-            gap: 1rem;
-            max-width: 500px;
-            width: 100%;
-        }
+    * { box-sizing: border-box; }
 
-        /* Button Styling */
-        .link-btn {
-            display: block;
-            text-decoration: none;
-            color: white;
-            background-color: #007bff; 
-            padding: 15px 20px;
-            text-align: center;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 1rem;
-            transition: all 0.3s ease; 
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 24px;
+    }
+    body.fa { font-family: 'Vazirmatn', Tahoma, sans-serif; }
 
-        /* Hover Effects */
-        .link-btn:hover {
-            transform: translateY(-3px); 
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-            background-color: #0056b3; 
-        }
+    h1 {
+      color: var(--accent);
+      font-size: 40px;
+      margin: 0 0 6px;
+    }
+    p.subtitle {
+      color: var(--muted);
+      font-size: 17px;
+      margin: 0 0 34px;
+      text-align: center;
+    }
 
-        /* activeClick effect */
-        .link-btn:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
+    /* ---- Language switch ---- */
+    .lang-switch {
+      display: flex;
+      gap: 0;
+      margin-bottom: 40px;
+      border: 2px solid var(--accent);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .lang-switch button {
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 600;
+      padding: 10px 34px;
+      border: none;
+      cursor: pointer;
+      background: #FFFFFF;
+      color: var(--accent);
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .lang-switch button.active {
+      background: var(--accent);
+      color: #FFFFFF;
+    }
+    .lang-switch button:not(.active):hover { background: #EDF2FF; }
 
-        /* Responsive */
-        @media (max-width: 480px) {
-            .button-container {
-                grid-template-columns: 1fr; 
-            }
-        }
-    </style>
+    /* ---- Game grid ---- */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 22px;
+      width: 100%;
+      max-width: 940px;
+    }
+    a.card {
+      display: block;
+      background: #FFFFFF;
+      border: 2px solid var(--card-border);
+      border-radius: 16px;
+      padding: 22px 24px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+    }
+    a.card:hover {
+      border-color: var(--accent);
+      transform: translateY(-3px);
+      box-shadow: 0 6px 18px rgba(59, 91, 219, 0.15);
+    }
+    .card .num {
+      display: inline-block;
+      background: var(--accent);
+      color: #FFFFFF;
+      font-weight: 700;
+      font-size: 14px;
+      width: 28px;
+      height: 28px;
+      line-height: 28px;
+      text-align: center;
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+    .card h2 {
+      margin: 0 0 6px;
+      font-size: 21px;
+      color: var(--text);
+    }
+    .card p {
+      margin: 0;
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    footer {
+      margin-top: 44px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    @media (max-width: 480px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
+  <h1 id="title"></h1>
+  <p class="subtitle" id="subtitle"></p>
 
-    <div class="button-container">
-        <a href="./1_StarSearch/index.html" class="link-btn">Star Search</a>
-        <a href="./2_ChalkboardChallenge/index.html" class="link-btn">Chalkboard Challenge</a>
-        <a href="./3_Go_NoGo/index.html" class="link-btn">Go/No-Go</a>
-        <a href="./4_Simon/index.html" class="link-btn">Simon</a>
-        <a href="./5_MemoryMatrix/index.html" class="link-btn">Memory Matrix</a>
-        <a href="./6_BrainShift/index.html" class="link-btn">Brain Shift</a>
-    </div>
+  <div class="lang-switch">
+    <button id="btnEn" onclick="setLang('en')">English</button>
+    <button id="btnFa" onclick="setLang('fa')">فارسی</button>
+  </div>
 
+  <div class="grid" id="grid"></div>
+
+  <footer id="footer"></footer>
+
+  <script>
+    /* =====================================================================
+       CogGames launcher
+       - The language switch decides which tree (Games_EN / Games_FA) the
+         game cards link into, and localizes the launcher page itself.
+       - The choice is remembered in localStorage across visits.
+       ===================================================================== */
+
+    // Folder names are identical in both trees; only the tree root differs.
+    const GAMES = [
+      {
+        folder: '1_Simon',
+        en: { name: 'Simon Task',           desc: 'Spatial stimulus-response compatibility and attentional control' },
+        fa: { name: 'آزمون سایمون',          desc: 'همخوانی مکانی محرک-پاسخ و کنترل توجه' }
+      },
+      {
+        folder: '2_GoNoGo',
+        en: { name: 'Go / No-Go',           desc: 'Response inhibition, sustained attention, signal detection' },
+        fa: { name: 'آزمون برو/نرو',         desc: 'بازداری پاسخ، توجه پایدار و تشخیص علامت' }
+      },
+      {
+        folder: '3_MemoryMatrix',
+        en: { name: 'Memory Matrix',        desc: 'Visuospatial working memory, pattern encoding and recall' },
+        fa: { name: 'ماتریس حافظه',          desc: 'حافظه کاری دیداری-فضایی، رمزگذاری و یادآوری الگو' }
+      },
+      {
+        folder: '4_StarSearch',
+        en: { name: 'Star Search',          desc: 'Visual selective attention: feature pop-out and conjunction search' },
+        fa: { name: 'جستجوی ستاره',          desc: 'توجه انتخابی دیداری: جستجوی ویژگی و جستجوی ترکیبی' }
+      },
+      {
+        folder: '5_BrainShift',
+        en: { name: 'Brain Shift',          desc: 'Cognitive flexibility, task switching, executive control' },
+        fa: { name: 'جابه‌جایی ذهنی',         desc: 'انعطاف‌پذیری شناختی، تغییر تکلیف و کنترل اجرایی' }
+      },
+      {
+        folder: '6_ChalkboardChallenge',
+        en: { name: 'Chalkboard Challenge', desc: 'Mental arithmetic, numerical processing, executive function' },
+        fa: { name: 'چالش تخته‌سیاه',         desc: 'محاسبه ذهنی، پردازش عددی و عملکرد اجرایی' }
+      }
+    ];
+
+    const PAGE_STRINGS = {
+      en: {
+        title: 'Cognitive Games',
+        subtitle: 'Evaluation of Unconscious Effect of Music on Cognitive Functions — choose a game to begin',
+        dir: 'ltr', tree: 'Games_EN', htmlLang: 'en'
+      },
+      fa: {
+        title: 'بازی‌های شناختی',
+        subtitle: 'ارزیابی اثر ناآگاهانه موسیقی بر عملکردهای شناختی — برای شروع یک بازی را انتخاب کنید',
+        dir: 'rtl', tree: 'Games_FA', htmlLang: 'fa'
+      }
+    };
+
+    function setLang(lang) {
+      localStorage.setItem('cogGamesLang', lang);
+      render(lang);
+    }
+
+    function render(lang) {
+      const S = PAGE_STRINGS[lang];
+
+      document.documentElement.lang = S.htmlLang;
+      document.documentElement.dir = S.dir;
+      document.body.classList.toggle('fa', lang === 'fa');
+
+      document.getElementById('title').textContent = S.title;
+      document.getElementById('subtitle').textContent = S.subtitle;
+      document.getElementById('footer').textContent = S.footer;
+      document.getElementById('btnEn').classList.toggle('active', lang === 'en');
+      document.getElementById('btnFa').classList.toggle('active', lang === 'fa');
+
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+      GAMES.forEach((g, i) => {
+        const a = document.createElement('a');
+        a.className = 'card';
+        a.href = `${S.tree}/${g.folder}/index.html`;
+
+        const num = document.createElement('span');
+        num.className = 'num';
+        num.textContent = lang === 'fa' ? String(i + 1).replace(/[0-9]/g, d => '۰۱۲۳۴۵۶۷۸۹'[+d]) : String(i + 1);
+
+        const h2 = document.createElement('h2');
+        h2.textContent = g[lang].name;
+
+        const p = document.createElement('p');
+        p.textContent = g[lang].desc;
+
+        a.append(num, h2, p);
+        grid.appendChild(a);
+      });
+    }
+
+    // Restore the last choice (default: English)
+    render(localStorage.getItem('cogGamesLang') || 'en');
+  </script>
 </body>
 </html>

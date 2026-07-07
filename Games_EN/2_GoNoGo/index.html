@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Go/No-Go Task</title>
+  <script src="../../p5/lib/p5.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #F4F6F8;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    canvas { display: block; }
+
+    /* ---- Shared UI theme (buttons / inputs / labels) ---- */
+    button.game-btn {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      color: #FFFFFF;
+      background: #3B5BDB;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.05s ease;
+      box-shadow: 0 2px 6px rgba(59, 91, 219, 0.35);
+    }
+    button.game-btn:hover  { background: #364FC7; }
+    button.game-btn:active { transform: scale(0.97); }
+
+    button.game-btn-secondary {
+      background: #868E96;
+      box-shadow: 0 2px 6px rgba(134, 142, 150, 0.35);
+    }
+    button.game-btn-secondary:hover { background: #6C757D; }
+
+    input.game-input {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 15px;
+      padding: 8px 12px;
+      border: 2px solid #CED4DA;
+      border-radius: 8px;
+      outline: none;
+      background: #FFFFFF;
+      color: #212529;
+      transition: border-color 0.15s ease;
+    }
+    input.game-input:focus { border-color: #3B5BDB; }
+
+    span.game-label {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      color: #37474F;
+    }
+  </style>
+</head>
+<body>
+  <script src="sketch.js"></script>
+</body>
+</html>
