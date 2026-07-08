@@ -128,10 +128,10 @@ const STRINGS = {
   ofLabel: 'of',
   instructionsCommon:
     'A colored digit appears in one of the four boxes.\n' +
-    'TOP boxes: judge the NUMBER (Even / Odd).\n' +
-    'BOTTOM boxes: judge the COLOR (Warm / Cool).\n' +
+    'TOP boxes: judge the NUMBER (0, 2, 4, 6, 8 are EVEN / 1, 3, 5, 7, 9 are ODD).\n' +
+    'BOTTOM boxes: judge the COLOR (RED, ORANGE, YELLOW are WARM / BLUE, GREEN, PURPLE are COOL).\n' +
     'Does the digit match the box’s category?\n' +
-    '→ = Yes        ← = No',
+    'No = ←    → = Yes ',
   instructionsNoLabels: 'Attention: at this level the box labels are hidden.\nRemember which box is which!',
   btnStartLevel: 'Start Level',
   pressSpaceToStart: '(or press SPACE)',

@@ -49,9 +49,9 @@ const CONFIG = {
 
   // --- Timing (Sections 0.5 / 0.6 / 3.5) ---
   ITI_MS: 150,                         // blank inter-trial interval
-  STIMULUS_MS: 1500,                   // grid + highlighted targets
+  STIMULUS_MS: 2000,                   // grid + highlighted targets
   RETENTION_MS: 1000,                  // blank retention interval
-  RESPONSE_WINDOW_MS: [6000, 6000, 6000], // flat recall window — memory load is the only difficulty axis; 6 s leaves motor slack even at 10 targets
+  RESPONSE_WINDOW_MS: [7000, 7000, 7000], // flat recall window — memory load is the only difficulty axis; 6 s leaves motor slack even at 10 targets
   ANTICIPATORY_THRESHOLD_MS: 150,      // RT below this => anticipatoryResponse = 1
 
   // --- Mouse handling (Sections 0.9 / 3.3 / 3.4) ---
@@ -222,6 +222,7 @@ let gridOriginX = 0, gridOriginY = 0, cellSizePx = 0;
 
 // Virtual cursor (pointer lock)
 let vCursorX = 0, vCursorY = 0;
+let lockActiveAtRecall = 0;          // was pointer lock actually engaged when recall began?
 
 // Mouse trajectory (separate CSV per Section 0.9)
 let trajectoryLogs = [];
@@ -675,6 +676,7 @@ function beginStimulusPhase() {
 
 function beginRecallPhase() {
   recallOnsetMs = nowMs();
+  lockActiveAtRecall = pointerLockActive() ? 1 : 0;
   // Cursor reappears at screen center (virtual cursor recentering)
   vCursorX = width / 2;
   vCursorY = height / 2;
@@ -746,7 +748,8 @@ function finishTrial(response) {
     outOfBoundsClickCount: outOfBoundsClicks,
     gridOriginX: gridOriginX,
     gridOriginY: gridOriginY,
-    cellSizePx: cellSizePx
+    cellSizePx: cellSizePx,
+    pointerLockActive: lockActiveAtRecall
   });
 
   advanceTrial();

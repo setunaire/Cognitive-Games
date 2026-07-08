@@ -113,7 +113,7 @@ const STRINGS = {
   instructionsCommon:
     'دو محاسبه در دو طرف صفحه ظاهر می‌شود.\n' +
     'تشخیص دهید کدام‌یک نتیجهٔ «بزرگ‌تری» دارد.\n' +
-    '← = چپ بزرگ‌تر است        → = راست بزرگ‌تر است',
+    ' راست بزرگ‌تر است = →         ← = چپ بزرگ‌تر است ',
   // Precedence reminders — shown only at levels whose operators need them
   precedenceNoteMult: 'یادآوری: × پیش از + و − محاسبه می‌شود.',
   precedenceNoteMultDiv: 'یادآوری: × و ÷ پیش از + و − محاسبه می‌شوند.',
