@@ -45,7 +45,7 @@ const CONFIG = {
 
   // --- Timing (Sections 0.5 / 0.6 / 6.6) ---
   ITI_MS: 150,
-  RESPONSE_WINDOW_MS: [6000, 5000, 4000], // L1 / L2 / L3
+  RESPONSE_WINDOW_MS: [5000, 5000, 5000], // flat 6 s: time never differs between levels, so difficulty is attributable purely to operators, terms, and the diffRatio band
   ANTICIPATORY_THRESHOLD_MS: 150,
 
   // --- Expression generation guards ---
@@ -581,9 +581,10 @@ function generateExpression(level, nTerms) {
       if (Math.random() < 0.5) { terms[i] = big; terms[i + 1] = small; }
       else { terms[i] = small; terms[i + 1] = big; }
     } else if (ops[i] === '/') {
-      // Section 6.3: divisor ∈ [2,9], dividend = divisor × quotient (1–2 digits)
+      // Section 6.3 algorithm, with the dividend capped to the level's number
+      // range (Section 6.2: dividend ∈ [1,50]) so no operand exceeds 50
       const divisor = randInt(level.divisorRange[0], level.divisorRange[1]);
-      const maxQ = Math.floor(99 / divisor);
+      const maxQ = Math.floor(level.addendRange[1] / divisor);
       const minQ = Math.max(1, Math.ceil(2 / divisor));
       const quotient = randInt(minQ, maxQ);
       terms[i] = divisor * quotient;   // dividend (left operand of ÷)

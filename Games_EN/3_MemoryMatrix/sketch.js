@@ -918,11 +918,18 @@ function pointerLockActive() {
   return document.pointerLockElement !== null && document.pointerLockElement !== undefined;
 }
 
-/* Accumulate relative mouse movement into the virtual cursor while locked. */
+/* Accumulate relative mouse movement into the virtual cursor while locked.
+   Some browsers deliver an undefined movementX/Y on the first locked event;
+   one NaN would otherwise poison the position (NaN + x = NaN) until unlock —
+   observed in pilot trajectory data as runs of "NaN,NaN" samples. */
 function updateVirtualCursor() {
   if (pointerLockActive()) {
-    vCursorX = constrain(vCursorX + movedX, 0, width);
-    vCursorY = constrain(vCursorY + movedY, 0, height);
+    const dx = Number.isFinite(movedX) ? movedX : 0;
+    const dy = Number.isFinite(movedY) ? movedY : 0;
+    vCursorX = constrain(vCursorX + dx, 0, width);
+    vCursorY = constrain(vCursorY + dy, 0, height);
+    if (!Number.isFinite(vCursorX)) vCursorX = width / 2;   // recover if ever poisoned
+    if (!Number.isFinite(vCursorY)) vCursorY = height / 2;
   } else {
     vCursorX = mouseX;
     vCursorY = mouseY;

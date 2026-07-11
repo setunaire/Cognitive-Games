@@ -47,7 +47,7 @@ const CONFIG = {
   // --- Timing (Sections 0.5 / 0.6 / 4.7) ---
   FIXATION_MIN_MS: 500,                // jittered fixation replaces the ITI
   FIXATION_MAX_MS: 800,
-  RESPONSE_WINDOW_MS: [5000, 4000, 2500], // L1 / L2 / L3
+  RESPONSE_WINDOW_MS: [4000, 3000, 2000], // L1 / L2 / L3 — L2/L3 tightened after piloting (~92%/~72% with 4000/2500)
   ANTICIPATORY_THRESHOLD_MS: 150,      // RT below this => anticipatoryResponse = 1
 
   // --- Mouse trajectory (Section 0.9) ---

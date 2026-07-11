@@ -45,7 +45,7 @@ const CONFIG = {
 
   // --- Timing (Sections 0.5 / 0.6 / 6.6) ---
   ITI_MS: 150,
-  RESPONSE_WINDOW_MS: [6000, 5000, 4000], // L1 / L2 / L3
+  RESPONSE_WINDOW_MS: [5000, 5000, 5000], // L1 / L2 / L3 — L3 raised: 4000 ms forced pure guessing (2AFC chance = 50%); difficulty comes from diffRatio + operators
   ANTICIPATORY_THRESHOLD_MS: 150,
 
   // --- Expression generation guards ---

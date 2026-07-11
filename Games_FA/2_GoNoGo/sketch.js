@@ -39,7 +39,7 @@ const CONFIG = {
 
   // --- Timing (Sections 0.5 / 0.6 / 0.8) ---
   ITI_MS: 150,                         // blank inter-trial interval
-  RESPONSE_WINDOW_MS: [1500, 1000, 700], // L1 / L2 / L3
+  RESPONSE_WINDOW_MS: [1000, 800, 600], // L1 / L2 / L3
   ANTICIPATORY_THRESHOLD_MS: 150,      // RT below this => anticipatoryResponse = 1
 
   // --- Stimulus geometry ---
@@ -47,9 +47,9 @@ const CONFIG = {
 
   // --- Stimulus colors (log names stay lowercase per spec) ---
   STIMULUS_COLORS: {
-    green: '#2B9E3F',
+    green: '#02db26',
     red: '#E03131',
-    blue: '#1971C2'
+    blue: '#2247fb'
   },
 
   // --- HUD (Section 0.7) ---
