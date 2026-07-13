@@ -39,7 +39,7 @@ const CONFIG = {
 
   // --- Timing (Sections 0.5 / 0.6 / 0.8) ---
   ITI_MS: 150,                         // blank inter-trial interval
-  RESPONSE_WINDOW_MS: [2000, 1200, 800], // L1 / L2 / L3
+  RESPONSE_WINDOW_MS: [2000, 1000, 750], // L1 / L2 / L3
   ANTICIPATORY_THRESHOLD_MS: 150,      // RT below this => anticipatoryResponse = 1
 
   // --- Stimulus geometry ---
@@ -253,8 +253,19 @@ function buildUI() {
   ui.btnAssess.mousePressed(() => {
     currentPhase = 'assessment';
     familiarizationNotice = '';
-    state = STATES.METADATA;
-    showOnly('metadata');
+    const stored = loadSessionFromStorage();
+    if (stored) {
+      // Session Information was entered once at the launcher (main.html) —
+      // reuse it and skip this game's own metadata form.
+      ui.inPart.value(stored.participantId);
+      ui.inSess.value(stored.sessionId);
+      ui.inMusic.value(stored.musicCondition);
+      onSubmitMetadata();
+    } else {
+      // Fallback: game opened standalone (not via the launcher) — ask here.
+      state = STATES.METADATA;
+      showOnly('metadata');
+    }
   });
 
   // Metadata form
@@ -570,6 +581,18 @@ function generateTrialPool(level) {
 /* ============================================================================
    9. TRIAL FLOW
    ========================================================================== */
+/* Read Session Information stored once by the launcher (main.html) under
+   'cogGamesSession'. Returns {participantId, sessionId, musicCondition} when all
+   three are present, else null so the game falls back to its own metadata form
+   when opened standalone. */
+function loadSessionFromStorage() {
+  try {
+    const s = JSON.parse(localStorage.getItem('cogGamesSession'));
+    if (s && s.participantId && s.sessionId && s.musicCondition) return s;
+  } catch (e) {}
+  return null;
+}
+
 function onSubmitMetadata() {
   const p = ui.inPart.value().trim();
   const s = ui.inSess.value().trim();

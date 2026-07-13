@@ -207,7 +207,7 @@ let recallOnsetMs = 0;
 let trialEnded = false;
 
 // Per-trial response data
-let selectedCells = [];              // "col,row" keys selected during recall
+let selectedCells = [];              // "row,col" keys selected during recall
 let clickTimes = [];                 // ms from recall onset, per accepted cell click
 let outOfBoundsClicks = 0;
 
@@ -286,8 +286,19 @@ function buildUI() {
   ui.btnAssess.mousePressed(() => {
     currentPhase = 'assessment';
     familiarizationNotice = '';
-    state = STATES.METADATA;
-    showOnly('metadata');
+    const stored = loadSessionFromStorage();
+    if (stored) {
+      // Session Information was entered once at the launcher (main.html) —
+      // reuse it and skip this game's own metadata form.
+      ui.inPart.value(stored.participantId);
+      ui.inSess.value(stored.sessionId);
+      ui.inMusic.value(stored.musicCondition);
+      onSubmitMetadata();
+    } else {
+      // Fallback: game opened standalone (not via the launcher) — ask here.
+      state = STATES.METADATA;
+      showOnly('metadata');
+    }
   });
 
   ui.lblPart = createSpan(STRINGS.labelParticipantId).class('game-label');
@@ -518,7 +529,7 @@ function drawGrid(trial, showTargets, showSelections) {
 
   for (let row = 0; row < n; row++) {
     for (let col = 0; col < n; col++) {
-      const key = `${col},${row}`;
+      const key = `${row},${col}`;
       let fillColor = CONFIG.GRID.EMPTY;
       if (showTargets && trial.targetSet.has(key)) fillColor = CONFIG.GRID.TARGET;
       if (showSelections && selectedCells.includes(key)) fillColor = CONFIG.GRID.SELECTED;
@@ -610,7 +621,7 @@ function randomTargetSet(n, nTargets) {
   const cells = [];
   for (let row = 0; row < n; row++)
     for (let col = 0; col < n; col++)
-      cells.push(`${col},${row}`);
+      cells.push(`${row},${col}`);
   return new Set(shuffleArray(cells).slice(0, nTargets));
 }
 
@@ -621,6 +632,18 @@ function trialsPerLevel() {
 /* ============================================================================
    9. TRIAL FLOW
    ========================================================================== */
+/* Read Session Information stored once by the launcher (main.html) under
+   'cogGamesSession'. Returns {participantId, sessionId, musicCondition} when all
+   three are present, else null so the game falls back to its own metadata form
+   when opened standalone. */
+function loadSessionFromStorage() {
+  try {
+    const s = JSON.parse(localStorage.getItem('cogGamesSession'));
+    if (s && s.participantId && s.sessionId && s.musicCondition) return s;
+  } catch (e) {}
+  return null;
+}
+
 function onSubmitMetadata() {
   const p = ui.inPart.value().trim();
   const s = ui.inSess.value().trim();
@@ -818,7 +841,7 @@ function mousePressed() {
   const row = Math.floor((py - gridOriginY) / cellSizePx);
 
   if (col >= 0 && col < n && row >= 0 && row < n) {
-    const key = `${col},${row}`;
+    const key = `${row},${col}`;
     // No correction rule: a cell can be selected once, never de-selected
     if (!selectedCells.includes(key)) {
       selectedCells.push(key);

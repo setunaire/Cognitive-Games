@@ -41,15 +41,17 @@ const CONFIG = {
   TRIALS_PER_LEVEL: 40,
   YES_RATIO: 0.5,                      // fraction of trials whose correct answer is 'yes'
 
-  /* Domain of the first trial per level. L1 has a 0% switch rate, so its
-     whole level stays in this domain — keep it FIXED (not random) so every
-     participant/session gets identical conditions in the within-subject
-     music design. */
-  START_DOMAIN: ['number', 'number', 'number'],   // L1 / L2 / L3
+  /* Level 1 is a PURE-BLOCK baseline (0% switching): two equal single-task
+     blocks — the first half of trials in one domain, the second half in the
+     other — so single-task RT baselines exist for BOTH task domains and the
+     switch cost at L2/L3 (mixed-block RT − pure-block RT) can be computed.
+     Flip this array to reverse which domain comes first. */
+  L1_BLOCK_ORDER: ['number', 'color'],   // first 20 trials / last 20 trials
+  MIXED_START_DOMAIN: 'number',          // starting domain for the mixed levels L2/L3
 
   // --- Timing (Sections 0.5 / 0.6 / 5.6) ---
   ITI_MS: 200,                         // blank inter-trial interval (longer than other games)
-  RESPONSE_WINDOW_MS: [3000, 2200, 1500], // L1 / L2 / L3
+  RESPONSE_WINDOW_MS: [3000, 2200, 1300], // L1 / L2 / L3
   ANTICIPATORY_THRESHOLD_MS: 150,      // RT below this => anticipatoryResponse = 1
 
   // --- Switch rates per level (Section 5.4) ---
@@ -174,9 +176,9 @@ const BOXES = [
    4. LEVELS — level definitions (Section 5.4)
    ========================================================================== */
 const LEVELS = [
-  { id: 1, switchRate: CONFIG.SWITCH_RATE[0], labelsVisible: true,  responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[0] },
-  { id: 2, switchRate: CONFIG.SWITCH_RATE[1], labelsVisible: true,  responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[1] },
-  { id: 3, switchRate: CONFIG.SWITCH_RATE[2], labelsVisible: false, responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[2] }
+  { id: 1, pureBlocks: CONFIG.L1_BLOCK_ORDER, switchRate: CONFIG.SWITCH_RATE[0], labelsVisible: true,  responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[0] },
+  { id: 2, switchRate: CONFIG.SWITCH_RATE[1],                                    labelsVisible: true,  responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[1] },
+  { id: 3, switchRate: CONFIG.SWITCH_RATE[2],                                    labelsVisible: false, responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[2] }
 ];
 
 /* ============================================================================
@@ -277,8 +279,19 @@ function buildUI() {
   ui.btnAssess.mousePressed(() => {
     currentPhase = 'assessment';
     familiarizationNotice = '';
-    state = STATES.METADATA;
-    showOnly('metadata');
+    const stored = loadSessionFromStorage();
+    if (stored) {
+      // Session Information was entered once at the launcher (main.html) —
+      // reuse it and skip this game's own metadata form.
+      ui.inPart.value(stored.participantId);
+      ui.inSess.value(stored.sessionId);
+      ui.inMusic.value(stored.musicCondition);
+      onSubmitMetadata();
+    } else {
+      // Fallback: game opened standalone (not via the launcher) — ask here.
+      state = STATES.METADATA;
+      showOnly('metadata');
+    }
   });
 
   ui.lblPart = createSpan(STRINGS.labelParticipantId).class('game-label');
@@ -576,17 +589,26 @@ function drawHUD(showCountdown) {
 function generateTrialPool(level) {
   const n = CONFIG.TRIALS_PER_LEVEL;
 
-  // --- 1. Switch flags for trials 2..n: exact count, shuffled positions ---
-  const nSwitches = Math.round((n - 1) * level.switchRate);
-  let switchFlags = [];
-  for (let i = 0; i < n - 1; i++) switchFlags.push(i < nSwitches);
-  switchFlags = shuffleArray(switchFlags);
-
-  // --- 2. Domain sequence: walk from the fixed start domain ---
-  const domains = [CONFIG.START_DOMAIN[levelIdx]];
-  for (let i = 0; i < n - 1; i++) {
-    const prev = domains[domains.length - 1];
-    domains.push(switchFlags[i] ? (prev === 'number' ? 'color' : 'number') : prev);
+  // --- 1-2. Domain sequence + per-trial switchType ---
+  let domains, switchTypes;
+  if (level.pureBlocks) {
+    // Level 1: two equal PURE single-task blocks, no within-block switches.
+    const half = Math.floor(n / 2);
+    domains = [];
+    for (let i = 0; i < n; i++) domains.push(i < half ? level.pureBlocks[0] : level.pureBlocks[1]);
+    switchTypes = domains.map((d, i) => (i === 0 || i === half) ? 'first' : 'repeat');
+  } else {
+    // Levels 2-3: mixed block with an exact switch count from switchRate.
+    const nSwitches = Math.round((n - 1) * level.switchRate);
+    let switchFlags = [];
+    for (let i = 0; i < n - 1; i++) switchFlags.push(i < nSwitches);
+    switchFlags = shuffleArray(switchFlags);
+    domains = [CONFIG.MIXED_START_DOMAIN];
+    for (let i = 0; i < n - 1; i++) {
+      const prev = domains[domains.length - 1];
+      domains.push(switchFlags[i] ? (prev === 'number' ? 'color' : 'number') : prev);
+    }
+    switchTypes = domains.map((d, i) => i === 0 ? 'first' : (domains[i] !== domains[i - 1] ? 'switch' : 'repeat'));
   }
 
   // --- 3. Correct answers: exact yes/no split, shuffled ---
@@ -617,10 +639,9 @@ function generateTrialPool(level) {
       stimulusNumber = Math.floor(Math.random() * 10);  // irrelevant dimension: fully random
     }
 
-    // switchType relative to the previous trial's domain (Section 5.4 note)
-    let switchType;
-    if (i === 0) switchType = 'first';
-    else switchType = (domains[i] !== domains[i - 1]) ? 'switch' : 'repeat';
+    // switchType (precomputed): pure blocks yield only 'first'/'repeat'; mixed
+    // blocks yield 'first'/'switch'/'repeat' (Section 5.4 note)
+    const switchType = switchTypes[i];
 
     pool.push({
       stimulusNumber, stimulusColor,
@@ -649,6 +670,18 @@ function randomFrom(arr) {
 /* ============================================================================
    10. TRIAL FLOW
    ========================================================================== */
+/* Read Session Information stored once by the launcher (main.html) under
+   'cogGamesSession'. Returns {participantId, sessionId, musicCondition} when all
+   three are present, else null so the game falls back to its own metadata form
+   when opened standalone. */
+function loadSessionFromStorage() {
+  try {
+    const s = JSON.parse(localStorage.getItem('cogGamesSession'));
+    if (s && s.participantId && s.sessionId && s.musicCondition) return s;
+  } catch (e) {}
+  return null;
+}
+
 function onSubmitMetadata() {
   const p = ui.inPart.value().trim();
   const s = ui.inSess.value().trim();

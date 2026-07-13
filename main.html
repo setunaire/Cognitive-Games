@@ -49,7 +49,7 @@
     p.subtitle {
       color: var(--muted);
       font-size: 17px;
-      margin: 0 0 34px;
+      margin: 0 0 28px;
       text-align: center;
     }
 
@@ -57,7 +57,7 @@
     .lang-switch {
       display: flex;
       gap: 0;
-      margin-bottom: 40px;
+      margin-bottom: 28px;
       border: 2px solid var(--accent);
       border-radius: 12px;
       overflow: hidden;
@@ -78,6 +78,64 @@
       color: #FFFFFF;
     }
     .lang-switch button:not(.active):hover { background: #EDF2FF; }
+
+    /* ---- Session Information panel (entered ONCE, reused by every game) ---- */
+    .session-panel {
+      background: #FFFFFF;
+      border: 2px solid var(--card-border);
+      border-radius: 16px;
+      padding: 20px 26px;
+      margin-bottom: 20px;
+      width: 100%;
+      max-width: 560px;
+    }
+    .session-panel h3 {
+      margin: 0 0 4px;
+      font-size: 18px;
+      color: var(--accent);
+    }
+    .session-panel .hint {
+      margin: 0 0 16px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .session-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+    .session-row label {
+      flex: 0 0 42%;
+      font-size: 15px;
+      font-weight: 600;
+      color: #37474F;
+    }
+    .session-row input,
+    .session-row select {
+      flex: 1;
+      font-family: inherit;
+      font-size: 15px;
+      padding: 8px 12px;
+      border: 2px solid #CED4DA;
+      border-radius: 8px;
+      outline: none;
+      background: #FFFFFF;
+      color: #212529;
+      transition: border-color 0.15s ease;
+    }
+    .session-row input:focus,
+    .session-row select:focus { border-color: var(--accent); }
+    body.fa .session-row input,
+    body.fa .session-row select { direction: ltr; text-align: start; }
+    .session-status {
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    .session-status.ok { color: #2F9E44; }
+    .session-status.warn { color: #E8590C; }
 
     /* ---- Game grid ---- */
     .grid {
@@ -101,6 +159,12 @@
       border-color: var(--accent);
       transform: translateY(-3px);
       box-shadow: 0 6px 18px rgba(59, 91, 219, 0.15);
+    }
+    /* Cards are disabled until Session Information is complete */
+    .grid.locked a.card {
+      opacity: 0.5;
+      pointer-events: none;
+      filter: grayscale(0.4);
     }
     .card .num {
       display: inline-block;
@@ -148,6 +212,25 @@
     <button id="btnFa" onclick="setLang('fa')">فارسی</button>
   </div>
 
+  <!-- Session Information: entered once here, stored, and reused by every game -->
+  <div class="session-panel">
+    <h3 id="sessionTitle"></h3>
+    <p class="hint" id="sessionHint"></p>
+    <div class="session-row">
+      <label id="lblPart" for="inPart"></label>
+      <input id="inPart" type="text" autocomplete="off">
+    </div>
+    <div class="session-row">
+      <label id="lblSess" for="inSess"></label>
+      <input id="inSess" type="text" autocomplete="off">
+    </div>
+    <div class="session-row">
+      <label id="lblMusic" for="inMusic"></label>
+      <select id="inMusic"></select>
+    </div>
+    <div class="session-status" id="sessionStatus"></div>
+  </div>
+
   <div class="grid" id="grid"></div>
 
   <footer id="footer"></footer>
@@ -155,66 +238,105 @@
   <script>
     /* =====================================================================
        CogGames launcher
-       - The language switch decides which tree (Games_EN / Games_FA) the
-         game cards link into, and localizes the launcher page itself.
-       - The choice is remembered in localStorage across visits.
+       - The language switch decides which tree (Games_EN / Games_FA) the game
+         cards link into, and localizes the launcher page itself.
+       - Session Information (participant / session / music condition) is
+         entered ONCE here and stored in localStorage under 'cogGamesSession'.
+         Each game reads it and skips its own metadata form. Cards stay locked
+         until all three fields are provided.
+       - Choices are remembered in localStorage across visits.
        ===================================================================== */
 
-    // Folder names are identical in both trees; only the tree root differs.
     const GAMES = [
-      {
-        folder: '1_Simon',
+      { folder: '1_Simon',
         en: { name: 'Simon Task',           desc: 'Spatial stimulus-response compatibility and attentional control' },
-        fa: { name: 'آزمون سایمون',          desc: 'همخوانی مکانی محرک-پاسخ و کنترل توجه' }
-      },
-      {
-        folder: '2_GoNoGo',
+        fa: { name: 'آزمون سایمون',          desc: 'همخوانی مکانی محرک-پاسخ و کنترل توجه' } },
+      { folder: '2_GoNoGo',
         en: { name: 'Go / No-Go',           desc: 'Response inhibition, sustained attention, signal detection' },
-        fa: { name: 'آزمون برو/نرو',         desc: 'بازداری پاسخ، توجه پایدار و تشخیص علامت' }
-      },
-      {
-        folder: '3_MemoryMatrix',
+        fa: { name: 'آزمون برو/نرو',         desc: 'بازداری پاسخ، توجه پایدار و تشخیص علامت' } },
+      { folder: '3_MemoryMatrix',
         en: { name: 'Memory Matrix',        desc: 'Visuospatial working memory, pattern encoding and recall' },
-        fa: { name: 'ماتریس حافظه',          desc: 'حافظه کاری دیداری-فضایی، رمزگذاری و یادآوری الگو' }
-      },
-      {
-        folder: '4_StarSearch',
+        fa: { name: 'ماتریس حافظه',          desc: 'حافظه کاری دیداری-فضایی، رمزگذاری و یادآوری الگو' } },
+      { folder: '4_StarSearch',
         en: { name: 'Star Search',          desc: 'Visual selective attention: feature pop-out and conjunction search' },
-        fa: { name: 'جستجوی ستاره',          desc: 'توجه انتخابی دیداری: جستجوی ویژگی و جستجوی ترکیبی' }
-      },
-      {
-        folder: '5_BrainShift',
+        fa: { name: 'جستجوی ستاره',          desc: 'توجه انتخابی دیداری: جستجوی ویژگی و جستجوی ترکیبی' } },
+      { folder: '5_BrainShift',
         en: { name: 'Brain Shift',          desc: 'Cognitive flexibility, task switching, executive control' },
-        fa: { name: 'جابه‌جایی ذهنی',         desc: 'انعطاف‌پذیری شناختی، تغییر تکلیف و کنترل اجرایی' }
-      },
-      {
-        folder: '6_ChalkboardChallenge',
+        fa: { name: 'جابه‌جایی ذهنی',         desc: 'انعطاف‌پذیری شناختی، تغییر تکلیف و کنترل اجرایی' } },
+      { folder: '6_ChalkboardChallenge',
         en: { name: 'Chalkboard Challenge', desc: 'Mental arithmetic, numerical processing, executive function' },
-        fa: { name: 'چالش تخته‌سیاه',         desc: 'محاسبه ذهنی، پردازش عددی و عملکرد اجرایی' }
-      }
+        fa: { name: 'چالش تخته‌سیاه',         desc: 'محاسبه ذهنی، پردازش عددی و عملکرد اجرایی' } }
     ];
+
+    // Music conditions offered in the dropdown (value = logged label).
+    const MUSIC_CONDITIONS = ['silence', 'calm', 'energizing'];
 
     const PAGE_STRINGS = {
       en: {
         title: 'Cognitive Games',
         subtitle: 'Evaluation of Unconscious Effect of Music on Cognitive Functions — choose a game to begin',
-        dir: 'ltr', tree: 'Games_EN', htmlLang: 'en'
+        dir: 'ltr', tree: 'Games_EN', htmlLang: 'en',
+        sessionTitle: 'Session Information',
+        sessionHint: 'Enter these once. Every game will use them — you will not be asked again.',
+        labelPart: 'Participant ID', labelSess: 'Session ID', labelMusic: 'Music Condition',
+        placeholderPart: 'e.g. P001', placeholderSess: 'e.g. P001_S1', selectPrompt: '— select —',
+        statusOk: '✓ Saved — you can start any game.',
+        statusWarn: 'Fill in all three fields to unlock the games.',
+        footer: 'Language and Session Information are stored on this computer and reused across games.'
       },
       fa: {
         title: 'بازی‌های شناختی',
         subtitle: 'ارزیابی اثر ناآگاهانه موسیقی بر عملکردهای شناختی — برای شروع یک بازی را انتخاب کنید',
-        dir: 'rtl', tree: 'Games_FA', htmlLang: 'fa'
+        dir: 'rtl', tree: 'Games_FA', htmlLang: 'fa',
+        sessionTitle: 'اطلاعات جلسه',
+        sessionHint: 'این موارد را یک بار وارد کنید. همهٔ بازی‌ها از آن استفاده می‌کنند و دوباره پرسیده نمی‌شود.',
+        labelPart: 'شناسه شرکت‌کننده', labelSess: 'شناسه جلسه', labelMusic: 'شرایط موسیقی',
+        placeholderPart: 'مثلاً P001', placeholderSess: 'مثلاً P001_S1', selectPrompt: '— انتخاب کنید —',
+        statusOk: '✓ ذخیره شد — می‌توانید هر بازی را شروع کنید.',
+        statusWarn: 'برای باز شدن بازی‌ها، هر سه فیلد را پر کنید.',
+        footer: 'زبان و اطلاعات جلسه روی این رایانه ذخیره و در همهٔ بازی‌ها استفاده می‌شود.'
       }
     };
 
+    let currentLang = localStorage.getItem('cogGamesLang') || 'en';
+
     function setLang(lang) {
+      currentLang = lang;
       localStorage.setItem('cogGamesLang', lang);
       render(lang);
     }
 
+    function loadSession() {
+      try { return JSON.parse(localStorage.getItem('cogGamesSession')) || {}; }
+      catch (e) { return {}; }
+    }
+
+    function saveSession() {
+      const sess = {
+        participantId: document.getElementById('inPart').value.trim(),
+        sessionId: document.getElementById('inSess').value.trim(),
+        musicCondition: document.getElementById('inMusic').value.trim()
+      };
+      localStorage.setItem('cogGamesSession', JSON.stringify(sess));
+      refreshLock();
+    }
+
+    function sessionComplete() {
+      const s = loadSession();
+      return !!(s.participantId && s.sessionId && s.musicCondition);
+    }
+
+    function refreshLock() {
+      const S = PAGE_STRINGS[currentLang];
+      const ok = sessionComplete();
+      document.getElementById('grid').classList.toggle('locked', !ok);
+      const st = document.getElementById('sessionStatus');
+      st.textContent = ok ? S.statusOk : S.statusWarn;
+      st.className = 'session-status ' + (ok ? 'ok' : 'warn');
+    }
+
     function render(lang) {
       const S = PAGE_STRINGS[lang];
-
       document.documentElement.lang = S.htmlLang;
       document.documentElement.dir = S.dir;
       document.body.classList.toggle('fa', lang === 'fa');
@@ -225,30 +347,65 @@
       document.getElementById('btnEn').classList.toggle('active', lang === 'en');
       document.getElementById('btnFa').classList.toggle('active', lang === 'fa');
 
+      // Session panel labels
+      document.getElementById('sessionTitle').textContent = S.sessionTitle;
+      document.getElementById('sessionHint').textContent = S.sessionHint;
+      document.getElementById('lblPart').textContent = S.labelPart;
+      document.getElementById('lblSess').textContent = S.labelSess;
+      document.getElementById('lblMusic').textContent = S.labelMusic;
+      document.getElementById('inPart').setAttribute('placeholder', S.placeholderPart);
+      document.getElementById('inSess').setAttribute('placeholder', S.placeholderSess);
+
+      // Music dropdown (rebuilt so the prompt is localized; selection preserved)
+      const sel = document.getElementById('inMusic');
+      const prev = sel.value;
+      sel.innerHTML = '';
+      const opt0 = document.createElement('option');
+      opt0.value = ''; opt0.textContent = S.selectPrompt;
+      sel.appendChild(opt0);
+      for (const mc of MUSIC_CONDITIONS) {
+        const o = document.createElement('option');
+        o.value = mc; o.textContent = mc;
+        sel.appendChild(o);
+      }
+      // Restore stored/previous selection
+      const stored = loadSession();
+      sel.value = prev || stored.musicCondition || '';
+
+      // Restore stored text fields
+      document.getElementById('inPart').value = stored.participantId || '';
+      document.getElementById('inSess').value = stored.sessionId || '';
+
+      // Build cards
       const grid = document.getElementById('grid');
       grid.innerHTML = '';
       GAMES.forEach((g, i) => {
         const a = document.createElement('a');
         a.className = 'card';
         a.href = `${S.tree}/${g.folder}/index.html`;
-
+        a.addEventListener('click', (ev) => {
+          if (!sessionComplete()) { ev.preventDefault(); refreshLock(); }
+          else saveSession();  // ensure latest values are persisted before navigating
+        });
         const num = document.createElement('span');
         num.className = 'num';
         num.textContent = lang === 'fa' ? String(i + 1).replace(/[0-9]/g, d => '۰۱۲۳۴۵۶۷۸۹'[+d]) : String(i + 1);
-
         const h2 = document.createElement('h2');
         h2.textContent = g[lang].name;
-
         const p = document.createElement('p');
         p.textContent = g[lang].desc;
-
         a.append(num, h2, p);
         grid.appendChild(a);
       });
+
+      refreshLock();
     }
 
-    // Restore the last choice (default: English)
-    render(localStorage.getItem('cogGamesLang') || 'en');
+    // Persist on every edit
+    ['inPart', 'inSess', 'inMusic'].forEach(id =>
+      document.getElementById(id).addEventListener('input', saveSession));
+
+    render(currentLang);
   </script>
 </body>
 </html>

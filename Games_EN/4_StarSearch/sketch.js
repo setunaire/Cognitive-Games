@@ -282,8 +282,19 @@ function buildUI() {
   ui.btnAssess.mousePressed(() => {
     currentPhase = 'assessment';
     familiarizationNotice = '';
-    state = STATES.METADATA;
-    showOnly('metadata');
+    const stored = loadSessionFromStorage();
+    if (stored) {
+      // Session Information was entered once at the launcher (main.html) —
+      // reuse it and skip this game's own metadata form.
+      ui.inPart.value(stored.participantId);
+      ui.inSess.value(stored.sessionId);
+      ui.inMusic.value(stored.musicCondition);
+      onSubmitMetadata();
+    } else {
+      // Fallback: game opened standalone (not via the launcher) — ask here.
+      state = STATES.METADATA;
+      showOnly('metadata');
+    }
   });
 
   ui.lblPart = createSpan(STRINGS.labelParticipantId).class('game-label');
@@ -639,6 +650,18 @@ function gridJitterPositions(count, paddingPx) {
 /* ============================================================================
    10. TRIAL FLOW
    ========================================================================== */
+/* Read Session Information stored once by the launcher (main.html) under
+   'cogGamesSession'. Returns {participantId, sessionId, musicCondition} when all
+   three are present, else null so the game falls back to its own metadata form
+   when opened standalone. */
+function loadSessionFromStorage() {
+  try {
+    const s = JSON.parse(localStorage.getItem('cogGamesSession'));
+    if (s && s.participantId && s.sessionId && s.musicCondition) return s;
+  } catch (e) {}
+  return null;
+}
+
 function onSubmitMetadata() {
   const p = ui.inPart.value().trim();
   const s = ui.inSess.value().trim();
