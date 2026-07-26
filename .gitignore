@@ -4,9 +4,10 @@
 *.zip
 *.docx
 *.bat
-.cache/
 
+.cache/
 .vscode/
+.claude/
 
 node_modules/
 npm-debug.log*
