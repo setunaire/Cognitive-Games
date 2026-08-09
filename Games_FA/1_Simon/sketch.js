@@ -67,7 +67,7 @@ const CONFIG = {
     ACCENT: '#3B5BDB',                 // headings / highlights
     HUD: '#37474F',                    // HUD text
     PLUS: '#5C7CFA',                   // center plus sign (light indigo — neutral for all trial types)
-    SLOT_OUTLINE: '#CED4DA',           // dim outline for the inactive position slots (ghost frame)
+    SLOT_OUTLINE: '#ADB5BD',           // dim outline for the inactive position slots (ghost frame)
     WORD: '#FFFFFF',                   // direction word text
     WORD_CARD: '#3B5BDB',              // solid card behind the word
     CORRECT: '#2F9E44',               // summary: correct
@@ -77,8 +77,7 @@ const CONFIG = {
 
   // --- Misc ---
   MENU_TITLE_SIZE: 42,
-  INSTRUCTION_TEXT_SIZE: 22,
-  SUMMARY_TEXT_SIZE: 24
+  INSTRUCTION_TEXT_SIZE: 22
 };
 
 /* ============================================================================
@@ -517,7 +516,7 @@ function drawPositionSlots(activePosition) {
   const h = CONFIG.WORD_TEXT_SIZE + CONFIG.WORD_CARD_PADDING_Y * 2;
   noFill();
   stroke(CONFIG.COLORS.SLOT_OUTLINE);
-  strokeWeight(2);
+  strokeWeight(3);
   for (const d of LEVELS[levelIdx].directions) {
     if (d === activePosition) continue;
     const pos = stimulusXY(d);

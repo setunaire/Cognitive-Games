@@ -9,8 +9,11 @@
    Two arithmetic expressions appear side by side. The participant judges
    which produces the larger value:
      ← = left is larger   |   → = right is larger
-   Operator precedence applies (× ÷ before + −); expressions are shown
-   as-is and participants must apply precedence themselves.
+   Every expression has exactly one operator (2 terms per side, all
+   levels), so precedence is never at stake within a single expression.
+   Level 2 guarantees × on at least one side; Level 3 guarantees × or ÷
+   on at least one side — that operator vocabulary is what escalates
+   across levels, alongside the diffRatio band below.
 
    Difficulty is controlled by the diffRatio band:
      diffRatio = |leftValue − rightValue| / max(leftValue, rightValue)
@@ -45,7 +48,7 @@ const CONFIG = {
 
   // --- Timing (Sections 0.5 / 0.6 / 6.6) ---
   ITI_MS: 150,
-  RESPONSE_WINDOW_MS: [5000, 5000, 5000], // flat 6 s: time never differs between levels, so difficulty is attributable purely to operators, terms, and the diffRatio band
+  RESPONSE_WINDOW_MS: [7000, 7000, 7000], // flat 6 s: time never differs between levels, so difficulty is attributable purely to operators, terms, and the diffRatio band
   ANTICIPATORY_THRESHOLD_MS: 150,
 
   // --- Expression generation guards ---
@@ -54,7 +57,7 @@ const CONFIG = {
   MAX_DIV_PER_EXPR: 1,                 // at most one ÷ per expression
   GEN_MAX_ATTEMPTS: 8000,              // rejection-sampling cap per trial
   L3_FALLBACK_AFTER: 2500,             // attempts before widening the L3 band (Section 6.2 note)
-  L3_FALLBACK_BAND: [0.10, 0.45],      // widened L3 band — must stay wider than the primary band below
+  L3_FALLBACK_BAND: [0.15, 0.60],      // widened L3 band — must stay wider than the primary band below
 
   // --- Expression rendering ---
   EXPR_TEXT_SIZE: 40,
@@ -149,6 +152,10 @@ const STRINGS = {
    3. LEVELS — level definitions (Section 6.2)
    termsPerSide: options for the number of operands on each side
    (picked independently per side per trial).
+   requiredOperators: at least one side's FIRST operator is forced to be
+   one of these (chosen at random if more than one) — otherwise a level's
+   signature operator could fail to appear anywhere in a trial, since an
+   unforced pick usually lands on +/- by chance alone.
    ========================================================================== */
 const LEVELS = [
   {
@@ -156,7 +163,7 @@ const LEVELS = [
     operators: ['+', '-'],
     termsPerSide: [2],
     addendRange: [1, 50],              // operands for + and −
-    diffRatioBand: [0.30, 0.60],
+    diffRatioBand: [0.40, 0.70],       // raised from [0.30,0.60] to keep clear of L2's now-eased band
     responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[0]
   },
   {
@@ -164,9 +171,10 @@ const LEVELS = [
     operators: ['+', '-', '*'],
     termsPerSide: [2, 3],              // "2 and 2, or 3" (Section 6.2)
     addendRange: [1, 50],
-    multBigRange: [2, 25],             // one × factor — eased from [1,50] (too hard overall)
+    multBigRange: [2, 20],             // one × factor — eased from [1,50] (too hard overall)
     multSmallRange: [2, 10],           // the other × factor — eased from [2,9]
-    diffRatioBand: [0.15, 0.30],
+    diffRatioBand: [0.25, 0.55],
+    requiredOperators: ['*'],
     responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[1]
   },
   {
@@ -174,10 +182,11 @@ const LEVELS = [
     operators: ['+', '-', '*', '/'],
     termsPerSide: [3],
     addendRange: [1, 50],
-    multBigRange: [2, 25],             // eased from [1,50] (too hard overall)
+    multBigRange: [2, 20],             // eased from [1,50] (too hard overall)
     multSmallRange: [2, 10],           // eased from [2,9]
-    divisorRange: [2, 9],              // ÷ generation per Section 6.3
-    diffRatioBand: [0.15, 0.35],       // eased from [0.10,0.15] (too hard overall)
+    divisorRange: [2, 10],             // ÷ generation per Section 6.3
+    diffRatioBand: [0.2, 0.5],       // eased from [0.10,0.15] (too hard overall)
+    requiredOperators: ['*', '/'],
     responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[2]
   }
 ];
@@ -555,8 +564,11 @@ function drawHUD(showCountdown) {
    ops.length === terms.length - 1.
    ========================================================================== */
 
-/* Generate one random expression for the level.
-   Constraints:
+/* Generate one random expression for the level. forcedOp (optional): use
+   this exact operator for the expression's first operator slot instead of
+   a random pick, to guarantee the level's signature operator appears
+   somewhere in the trial (Section 6.2, requiredOperators).
+   Constraints when forcedOp is not used (or past the first slot):
    - at most MAX_MULT_PER_EXPR × and MAX_DIV_PER_EXPR ÷ per expression;
    - × and ÷ are never adjacent (in either order): adjacent high-precedence
      operators share an operand, so one would overwrite the other's operand
@@ -564,17 +576,22 @@ function drawHUD(showCountdown) {
    - × gets one factor from multBigRange and one from multSmallRange;
    - ÷ operands come from the Section 6.3 algorithm (integer result,
      1–2 digit dividend). */
-function generateExpression(level, nTerms) {
+function generateExpression(level, nTerms, forcedOp) {
   const ops = [];
   let multUsed = 0, divUsed = 0;
 
   for (let i = 0; i < nTerms - 1; i++) {
-    const allowed = level.operators.filter(op => {
-      if (op === '*') return multUsed < CONFIG.MAX_MULT_PER_EXPR && (i === 0 || ops[i - 1] !== '/');
-      if (op === '/') return divUsed < CONFIG.MAX_DIV_PER_EXPR && (i === 0 || (ops[i - 1] !== '*' && ops[i - 1] !== '/'));
-      return true;
-    });
-    const op = allowed[Math.floor(Math.random() * allowed.length)];
+    let op;
+    if (forcedOp && ops.length === 0) {
+      op = forcedOp;
+    } else {
+      const allowed = level.operators.filter(candidate => {
+        if (candidate === '*') return multUsed < CONFIG.MAX_MULT_PER_EXPR && (i === 0 || ops[i - 1] !== '/');
+        if (candidate === '/') return divUsed < CONFIG.MAX_DIV_PER_EXPR && (i === 0 || (ops[i - 1] !== '*' && ops[i - 1] !== '/'));
+        return true;
+      });
+      op = allowed[Math.floor(Math.random() * allowed.length)];
+    }
     if (op === '*') multUsed++;
     if (op === '/') divUsed++;
     ops.push(op);
@@ -675,8 +692,16 @@ function generateTrial(level, largerSide) {
 
     const nA = level.termsPerSide[Math.floor(Math.random() * level.termsPerSide.length)];
     const nB = level.termsPerSide[Math.floor(Math.random() * level.termsPerSide.length)];
-    let exprA = generateExpression(level, nA);
-    let exprB = generateExpression(level, nB);
+
+    // Guarantee the level's signature operator on a random side (Section 6.2)
+    let forcedOpA, forcedOpB;
+    if (level.requiredOperators) {
+      const forcedOp = level.requiredOperators[Math.floor(Math.random() * level.requiredOperators.length)];
+      if (Math.random() < 0.5) forcedOpA = forcedOp; else forcedOpB = forcedOp;
+    }
+
+    let exprA = generateExpression(level, nA, forcedOpA);
+    let exprB = generateExpression(level, nB, forcedOpB);
     const valA = evaluateExpression(exprA);
     const valB = evaluateExpression(exprB);
 

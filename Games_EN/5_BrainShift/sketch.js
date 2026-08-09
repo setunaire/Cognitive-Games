@@ -51,7 +51,7 @@ const CONFIG = {
 
   // --- Timing (Sections 0.5 / 0.6 / 5.6) ---
   ITI_MS: 200,                         // blank inter-trial interval (longer than other games)
-  RESPONSE_WINDOW_MS: [3000, 2200, 1300], // L1 / L2 / L3
+  RESPONSE_WINDOW_MS: [3000, 2200, 1300], // L1 / L2 / L3 — per doc §0.6: L3 1300 ms lands ~62%; L1/L2 kept generous to preserve correct-trial count for the switch-cost RT contrast
   ANTICIPATORY_THRESHOLD_MS: 150,      // RT below this => anticipatoryResponse = 1
 
   // --- Switch rates per level (Section 5.4) ---
@@ -184,7 +184,7 @@ const BOXES = [
 const LEVELS = [
   { id: 1, pureBlocks: CONFIG.L1_BLOCK_ORDER, switchRate: CONFIG.SWITCH_RATE[0], labelsVisible: true,  responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[0] },
   { id: 2, switchRate: CONFIG.SWITCH_RATE[1],                                    labelsVisible: true,  responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[1] },
-  { id: 3, switchRate: CONFIG.SWITCH_RATE[2],                                    labelsVisible: false, responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[2] }
+  { id: 3, switchRate: CONFIG.SWITCH_RATE[2],                                    labelsVisible: true,  responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[2] }
 ];
 
 /* ============================================================================
@@ -767,8 +767,7 @@ function recordResponse(response) {
     stimulusPosition: trial.stimulusPosition,
     taskDomain: trial.taskDomain,
     expectedCategory: trial.expectedCategory,
-    switchType: trial.switchType,
-    labelsVisible: level.labelsVisible ? 1 : 0
+    switchType: trial.switchType
   });
 
   advanceTrial();
@@ -835,6 +834,7 @@ function exportCSV() {
     ['devicePixelRatio', window.devicePixelRatio],
     ['responseWindowsMs', CONFIG.RESPONSE_WINDOW_MS.join('/')],
     ['switchRates', CONFIG.SWITCH_RATE.join('/')],
+    ['labelsVisible', LEVELS.map(l => l.labelsVisible ? 1 : 0).join('/')],   // per level; constant while labels are shown at every level
     ['itiMs', CONFIG.ITI_MS],
     ['trialsPerLevel', CONFIG.TRIALS_PER_LEVEL]
   ];

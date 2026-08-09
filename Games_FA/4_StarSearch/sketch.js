@@ -789,8 +789,7 @@ function finishTrial(clickPos) {
     // --- Star Search-specific fields (Section 4.8) ---
     searchType: level.searchType,
     setSize: level.setSize,
-    targetItem: targetItemStr,
-    distractor1Item: `${trial.d1Color}_${trial.targetShape}`,
+    distractor1Item: trial.d1Count > 0 ? `${trial.d1Color}_${trial.targetShape}` : '',
     distractor2Item: trial.d2Count > 0 ? `${trial.targetColor}_${trial.d2Shape}` : '',
     distractor1Count: trial.d1Count,
     distractor2Count: trial.d2Count,

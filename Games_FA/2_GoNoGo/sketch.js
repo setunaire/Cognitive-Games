@@ -69,8 +69,7 @@ const CONFIG = {
 
   // --- Misc ---
   MENU_TITLE_SIZE: 42,
-  INSTRUCTION_TEXT_SIZE: 22,
-  SUMMARY_TEXT_SIZE: 24
+  INSTRUCTION_TEXT_SIZE: 22
 };
 
 /* ============================================================================

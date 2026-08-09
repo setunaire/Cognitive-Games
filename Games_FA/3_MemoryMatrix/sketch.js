@@ -10,7 +10,7 @@
    on an empty grid, then presses Done. Perfect recall (all targets, no
    false alarms) is required for result = 1.
 
-   Trial phases:  ITI (150 ms) → STIMULUS (1500 ms) → RETENTION (1000 ms)
+   Trial phases:  ITI (150 ms) → STIMULUS (2000 ms) → RETENTION (1000 ms)
                   → RECALL (response window) → log
 
    Mouse handling:
@@ -30,7 +30,7 @@
      5. RUNTIME STATE     — mutable session/trial variables
      6. p5 LIFECYCLE      — setup / draw / windowResized
      7. SCREENS           — menu, metadata, instructions, summary, end
-     8. TRIAL GENERATION  — 15 trials/level, single fixed difficulty
+     8. TRIAL GENERATION  — 20 trials/level, single fixed difficulty
      9. TRIAL FLOW        — phase transitions and trial completion
     10. INPUT HANDLERS    — virtual-cursor clicks, cell selection, Done
     11. LOGGING & EXPORT  — trial CSV + separate mouse trajectory CSV
@@ -45,13 +45,13 @@ const CONFIG = {
   INPUT_DEVICE: 'mouse',                // reported in session metadata (Section 0.10)
 
   // --- Trial structure (Sections 0.3 / 3.2) ---
-  TRIALS_PER_LEVEL: 15,                // no within-level stages; pilot showed 40 made the game far too long
+  TRIALS_PER_LEVEL: 20,                // no within-level stages; enough for the graded span score (Section 7.4), which needs far fewer trials than a binary accuracy estimate
 
   // --- Timing (Sections 0.5 / 0.6 / 3.5) ---
   ITI_MS: 150,                         // blank inter-trial interval
   STIMULUS_MS: 2000,                   // grid + highlighted targets
   RETENTION_MS: 1000,                  // blank retention interval
-  RESPONSE_WINDOW_MS: [7000, 7000, 7000], // flat recall window — memory load is the only difficulty axis; ample motor slack even at the max 9 targets (L3)
+  RESPONSE_WINDOW_MS: [9000, 9000, 9000], // flat recall window — memory load is the only difficulty axis. 9 s (not 7) so L3's 9 clicks (8 cells + Done) under the pointer-lock virtual cursor are not motor-truncated: at 7 s a correct recall could still time out, the artifact Section 7.4's lenient re-scoring exists to catch. The window is a cap, not a duration, so easier levels cost no extra time.
   ANTICIPATORY_THRESHOLD_MS: 150,      // RT below this => anticipatoryResponse = 1
 
   // --- Mouse handling (Sections 0.9 / 3.3 / 3.4) ---
@@ -129,6 +129,7 @@ const STRINGS = {
     'روی همهٔ خانه‌هایی که روشن بودند کلیک کنید و سپس دکمهٔ «پایان» را بزنید.\n' +
     'کلیک‌ها قابل لغو نیستند، پس با دقت انتخاب کنید.',
   gridInfo: 'شبکه: {g} × {g}',
+  increasingDifficultyNote: 'در مراحل بعدی، تعداد خانه‌های بیشتری باید به خاطر سپرده شود.',
   btnStartLevel: 'شروع مرحله',
   pressSpaceToStart: '(یا کلید فاصله را فشار دهید)',
 
@@ -162,9 +163,9 @@ const STRINGS = {
    4×4 grid yielded ~60% accuracy at L1 (target: 90-100%). Perfect recall is
    required, so L1 stays just below that range; L2/L3 ramp up from there. */
 const LEVELS = [
-  { id: 1, gridSize: 5, nTargets: 5, responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[0] },
-  { id: 2, gridSize: 5, nTargets: 7, responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[1] },
-  { id: 3, gridSize: 5, nTargets: 9, responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[2] }
+  { id: 1, gridSize: 5, nTargets: 4, responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[0] },
+  { id: 2, gridSize: 5, nTargets: 6, responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[1] },
+  { id: 3, gridSize: 5, nTargets: 8, responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[2] }
 ];
 
 /* ============================================================================
@@ -421,6 +422,11 @@ function drawInstructionsScreen() {
   fill(CONFIG.COLORS.HUD);
   textSize(20);
   text(fmtTemplate(STRINGS.gridInfo, { g: fmtNum(level.gridSize) }), width / 2, height / 2 + 40);
+
+  if (level.id < LEVELS.length) {
+    textSize(16);
+    text(STRINGS.increasingDifficultyNote, width / 2, height / 2 + 90);
+  }
 
   textSize(15);
   text(STRINGS.pressSpaceToStart, width / 2, height / 2 + 250);
@@ -737,7 +743,7 @@ function finishTrial(response) {
   else { levelStats.timeout++; totalStats.timeout++; }
 
   // Final trajectory snapshot at trial end (Section 0.9)
-  logTrajectoryPoint(true);
+  logTrajectoryPoint();
 
   trialLogs.push({
     // --- Common per-trial fields (Section 0.10) ---
@@ -752,7 +758,6 @@ function finishTrial(response) {
     reactionTime: reactionTime,
     anticipatoryResponse: (!isTimeout && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0,
     // --- Memory Matrix-specific fields (Section 3.7) ---
-    gridSize: trial.gridSize,
     nTargets: trial.nTargets,
     targetCells: [...targetSet].join(';'),
     clickedCells: selectedCells.join(';'),
@@ -869,6 +874,7 @@ function exportCSV() {
     ['stimulusMs', CONFIG.STIMULUS_MS],
     ['retentionMs', CONFIG.RETENTION_MS],
     ['trialsPerLevel', CONFIG.TRIALS_PER_LEVEL],
+    ['gridSizes', LEVELS.map(l => l.gridSize).join('/')],   // constant per level — see Section 7.4 (capacity estimate uses gridSize²)
     ['pointerLockUsed', CONFIG.USE_POINTER_LOCK ? 1 : 0]
   ];
 
@@ -909,11 +915,11 @@ function sampleTrajectory() {
   const t = nowMs();
   if (t - lastTrajectorySampleMs >= CONFIG.TRAJECTORY_SAMPLE_MS) {
     lastTrajectorySampleMs = t;
-    logTrajectoryPoint(false);
+    logTrajectoryPoint();
   }
 }
 
-function logTrajectoryPoint(/* isFinalSnapshot */) {
+function logTrajectoryPoint() {
   trajectoryLogs.push({
     trialIndexGlobal: trialIdxGlobal + 1,
     timestampMs: Math.round(nowMs()),
