@@ -25,12 +25,12 @@
    File layout:
      1. CONFIG            — every tunable parameter
      2. STRINGS           — every user-visible text (translate here only)
-     3. LEVELS            — grid size, targets per stage, response windows
+     3. LEVELS            — grid size, target count, response windows
      4. STATES            — state machine constants
      5. RUNTIME STATE     — mutable session/trial variables
      6. p5 LIFECYCLE      — setup / draw / windowResized
      7. SCREENS           — menu, metadata, instructions, summary, end
-     8. TRIAL GENERATION  — 40 trials/level over 3 stages (13/14/13)
+     8. TRIAL GENERATION  — 15 trials/level, single fixed difficulty
      9. TRIAL FLOW        — phase transitions and trial completion
     10. INPUT HANDLERS    — virtual-cursor clicks, cell selection, Done
     11. LOGGING & EXPORT  — trial CSV + separate mouse trajectory CSV
@@ -45,13 +45,13 @@ const CONFIG = {
   INPUT_DEVICE: 'mouse',                // reported in session metadata (Section 0.10)
 
   // --- Trial structure (Sections 0.3 / 3.2) ---
-  TRIALS_PER_STAGE: [7, 6, 7],         // stages 1..3 — totals 20 per level (pilot: 40 made the game far too long)
+  TRIALS_PER_LEVEL: 15,                // no within-level stages; pilot showed 40 made the game far too long
 
   // --- Timing (Sections 0.5 / 0.6 / 3.5) ---
   ITI_MS: 150,                         // blank inter-trial interval
   STIMULUS_MS: 2000,                   // grid + highlighted targets
   RETENTION_MS: 1000,                  // blank retention interval
-  RESPONSE_WINDOW_MS: [7000, 7000, 7000], // flat recall window — memory load is the only difficulty axis; 6 s leaves motor slack even at 10 targets
+  RESPONSE_WINDOW_MS: [7000, 7000, 7000], // flat recall window — memory load is the only difficulty axis; ample motor slack even at the max 9 targets (L3)
   ANTICIPATORY_THRESHOLD_MS: 150,      // RT below this => anticipatoryResponse = 1
 
   // --- Mouse handling (Sections 0.9 / 3.3 / 3.4) ---
@@ -161,15 +161,16 @@ const STRINGS = {
 
 /* ============================================================================
    3. LEVELS — level definitions (Section 3.2)
-   targetsPerStage[i] = number of highlighted cells during stage i+1.
+   Grid size fixed at 5×5 for every level; nTargets (fixed per level, no
+   within-level stages) is the only difficulty axis.
    ========================================================================== */
-/* Target counts recalibrated after piloting: the original 5-7 / 8-10 / 11-13
-   yielded ~60% accuracy at L1 (target: 90-100%). Perfect recall is required,
-   so counts sit just below / at / above typical visuospatial span (~4-5). */
+/* Target counts recalibrated after piloting: 5-7 targets in the original
+   4×4 grid yielded ~60% accuracy at L1 (target: 90-100%). Perfect recall is
+   required, so L1 stays just below that range; L2/L3 ramp up from there. */
 const LEVELS = [
-  { id: 1, gridSize: 4, targetsPerStage: [4, 5, 6],    responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[0] },
-  { id: 2, gridSize: 5, targetsPerStage: [6, 7, 8],    responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[1] },
-  { id: 3, gridSize: 6, targetsPerStage: [8, 9, 10],   responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[2] }
+  { id: 1, gridSize: 5, nTargets: 5, responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[0] },
+  { id: 2, gridSize: 5, nTargets: 7, responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[1] },
+  { id: 3, gridSize: 5, nTargets: 9, responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[2] }
 ];
 
 /* ============================================================================
@@ -584,7 +585,7 @@ function drawHUD(showCountdown) {
 
   const trialTxt = fmtTemplate(STRINGS.hudTrial, {
     i: fmtNum(trialIdxLevel + 1),
-    n: fmtNum(trialsPerLevel())
+    n: fmtNum(CONFIG.TRIALS_PER_LEVEL)
   });
 
   let remainingMs = LEVELS[levelIdx].responseWindowMs;
@@ -596,23 +597,19 @@ function drawHUD(showCountdown) {
 
 /* ============================================================================
    8. TRIAL GENERATION (Section 3.2)
-   40 trials per level across 3 stages (13 / 14 / 13). Target count depends
-   on the stage; target cells are drawn uniformly without replacement.
+   TRIALS_PER_LEVEL trials, all at the level's fixed nTargets (no
+   within-level stages). Target cells are drawn uniformly without replacement.
    ========================================================================== */
 function generateTrialPool(level) {
   const pool = [];
-  for (let stage = 0; stage < CONFIG.TRIALS_PER_STAGE.length; stage++) {
-    const nTargets = level.targetsPerStage[stage];
-    for (let i = 0; i < CONFIG.TRIALS_PER_STAGE[stage]; i++) {
-      pool.push({
-        stage: stage + 1,
-        gridSize: level.gridSize,
-        nTargets: nTargets,
-        targetSet: randomTargetSet(level.gridSize, nTargets)
-      });
-    }
+  for (let i = 0; i < CONFIG.TRIALS_PER_LEVEL; i++) {
+    pool.push({
+      gridSize: level.gridSize,
+      nTargets: level.nTargets,
+      targetSet: randomTargetSet(level.gridSize, level.nTargets)
+    });
   }
-  return pool;   // sequential: stage 1 trials, then stage 2, then stage 3
+  return pool;
 }
 
 /* Pick nTargets distinct cells uniformly from an n×n grid. */
@@ -622,10 +619,6 @@ function randomTargetSet(n, nTargets) {
     for (let col = 0; col < n; col++)
       cells.push(`${row},${col}`);
   return new Set(shuffleArray(cells).slice(0, nTargets));
-}
-
-function trialsPerLevel() {
-  return CONFIG.TRIALS_PER_STAGE.reduce((a, b) => a + b, 0);
 }
 
 /* ============================================================================
@@ -758,7 +751,6 @@ function finishTrial(response) {
     reactionTime: reactionTime,
     anticipatoryResponse: (!isTimeout && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0,
     // --- Memory Matrix-specific fields (Section 3.7) ---
-    stage: trial.stage,
     gridSize: trial.gridSize,
     nTargets: trial.nTargets,
     targetCells: [...targetSet].join(';'),
@@ -875,7 +867,7 @@ function exportCSV() {
     ['itiMs', CONFIG.ITI_MS],
     ['stimulusMs', CONFIG.STIMULUS_MS],
     ['retentionMs', CONFIG.RETENTION_MS],
-    ['trialsPerLevel', trialsPerLevel()],
+    ['trialsPerLevel', CONFIG.TRIALS_PER_LEVEL],
     ['pointerLockUsed', CONFIG.USE_POINTER_LOCK ? 1 : 0]
   ];
 

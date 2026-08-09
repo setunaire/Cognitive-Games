@@ -8,7 +8,8 @@
 
    The participant clicks the singleton — the one item that looks different
    from all the others. No cue is shown.
-     L1 — Feature pop-out: unique color, parallel search.
+     L1 — Feature pop-out: unique color (half the trials) or unique shape
+          (the other half), parallel search either way.
      L2 — Conjunction: unique color+shape combination, serial search.
      L3 — Conjunction + crowding: items packed at 5 px (Whitney & Levi, 2011).
 
@@ -158,13 +159,17 @@ const SHAPE_SET = ['circle', 'square', 'triangle', 'diamond', 'pentagon',
 /* ============================================================================
    4. LEVELS — level definitions (Section 4.3)
    distractorPairs: [d1Count, d2Count] options — one is picked per trial.
-   d1 = same shape as target, different color.
-   d2 = same color as target, different shape (none at L1).
+   d1 = same shape as target, different color (color singleton).
+   d2 = same color as target, different shape (shape singleton).
+   L1 balances its two options exactly 20/20 across the level (Section 4.3);
+   L2/L3 pick randomly per trial among their listed options.
    ========================================================================== */
 const LEVELS = [
   {
     id: 1, searchType: 'feature', setSize: 21, paddingPx: 50,
-    distractorPairs: [[20, 0]],
+    // [20,0] = color singleton (all distractors share the target's shape),
+    // [0,20] = shape singleton (all distractors share the target's color).
+    distractorPairs: [[20, 0], [0, 20]],
     placement: 'rejection',
     responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[0]
   },
@@ -522,7 +527,8 @@ function drawHUD(showCountdown) {
 
 /* Pre-generate 40 trial parameter sets with balanced coverage of target
    colors and shapes (each of the 10 colors and 10 shapes serves as the
-   target exactly 4 times). Shuffled once; drawn sequentially. */
+   target exactly 4 times). L1 also balances color-singleton vs
+   shape-singleton trials exactly 20/20. Shuffled once; drawn sequentially. */
 function generateTrialPool(level) {
   const n = CONFIG.TRIALS_PER_LEVEL;
 
@@ -536,6 +542,17 @@ function generateTrialPool(level) {
   targetColors = shuffleArray(targetColors);
   targetShapes = shuffleArray(targetShapes);
 
+  // L1: exact 20/20 color-singleton vs shape-singleton split (Section 4.3).
+  // L2/L3: pick randomly per trial among their listed distractorPairs options.
+  let pairAssignment = null;
+  if (level.id === 1) {
+    const half = n / 2;
+    pairAssignment = shuffleArray([
+      ...Array(half).fill(level.distractorPairs[0]),
+      ...Array(half).fill(level.distractorPairs[1])
+    ]);
+  }
+
   const pool = [];
   for (let i = 0; i < n; i++) {
     const tColor = targetColors[i];
@@ -546,8 +563,9 @@ function generateTrialPool(level) {
     // d2: same color as target, different shape (L2/L3 only)
     const d2Shape = randomOther(SHAPE_SET, tShape);
 
-    // Distractor pair counts: pick one option randomly per trial (Section 4.3)
-    const pair = level.distractorPairs[Math.floor(Math.random() * level.distractorPairs.length)];
+    const pair = pairAssignment
+      ? pairAssignment[i]
+      : level.distractorPairs[Math.floor(Math.random() * level.distractorPairs.length)];
 
     pool.push({
       targetColor: tColor, targetShape: tShape,

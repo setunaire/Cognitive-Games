@@ -54,7 +54,7 @@ const CONFIG = {
   MAX_DIV_PER_EXPR: 1,                 // at most one ÷ per expression
   GEN_MAX_ATTEMPTS: 8000,              // rejection-sampling cap per trial
   L3_FALLBACK_AFTER: 2500,             // attempts before widening the L3 band (Section 6.2 note)
-  L3_FALLBACK_BAND: [0.10, 0.18],      // widened L3 band
+  L3_FALLBACK_BAND: [0.10, 0.45],      // widened L3 band — must stay wider than the primary band below
 
   // --- Expression rendering ---
   EXPR_TEXT_SIZE: 40,
@@ -164,8 +164,8 @@ const LEVELS = [
     operators: ['+', '-', '*'],
     termsPerSide: [2, 3],              // "2 and 2, or 3" (Section 6.2)
     addendRange: [1, 50],
-    multBigRange: [1, 50],             // one × factor
-    multSmallRange: [2, 9],            // the other × factor
+    multBigRange: [2, 25],             // one × factor — eased from [1,50] (too hard overall)
+    multSmallRange: [2, 10],           // the other × factor — eased from [2,9]
     diffRatioBand: [0.15, 0.30],
     responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[1]
   },
@@ -174,10 +174,10 @@ const LEVELS = [
     operators: ['+', '-', '*', '/'],
     termsPerSide: [3],
     addendRange: [1, 50],
-    multBigRange: [1, 50],
-    multSmallRange: [2, 9],
+    multBigRange: [2, 25],             // eased from [1,50] (too hard overall)
+    multSmallRange: [2, 10],           // eased from [2,9]
     divisorRange: [2, 9],              // ÷ generation per Section 6.3
-    diffRatioBand: [0.10, 0.15],
+    diffRatioBand: [0.15, 0.35],       // eased from [0.10,0.15] (too hard overall)
     responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[2]
   }
 ];

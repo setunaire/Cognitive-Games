@@ -9,6 +9,9 @@
    A direction word appears on screen. The participant presses the arrow key
    matching the word's MEANING, regardless of the word's screen POSITION.
    Meaning/position conflicts (incongruent trials) produce the Simon effect.
+   All of the level's positions stay visible all trial long as dim empty
+   slots (a "ghost frame"); only the current trial's slot lights up with
+   the word, keeping the spatial layout constantly salient.
 
    File layout:
      1. CONFIG            — every tunable parameter
@@ -50,6 +53,8 @@ const CONFIG = {
   WORD_CARD_PADDING_Y: 16,
   PLUS_SIZE: 56,                       // center plus sign text size
   PLUS_VISIBLE_DURING_ITI: true,       // plus is a permanent reference frame (Section 1.1)
+  SHOW_POSITION_GHOST_FRAME: true,     // all of the level's positions stay visible as dim slots (Section 1.1)
+  SLOT_WIDTH: 170,                     // width of each dim position-slot outline (height matches the word card)
 
   // --- HUD (Section 0.7) ---
   HUD_TEXT_SIZE: 18,
@@ -62,6 +67,7 @@ const CONFIG = {
     ACCENT: '#3B5BDB',                 // headings / highlights
     HUD: '#37474F',                    // HUD text
     PLUS: '#5C7CFA',                   // center plus sign (light indigo — neutral for all trial types)
+    SLOT_OUTLINE: '#CED4DA',           // dim outline for the inactive position slots (ghost frame)
     WORD: '#FFFFFF',                   // direction word text
     WORD_CARD: '#3B5BDB',              // solid card behind the word
     CORRECT: '#2F9E44',               // summary: correct
@@ -414,6 +420,7 @@ function drawInstructionsScreen() {
 function drawItiScreen() {
   // Blank ITI screen; the permanent plus stays if configured (Section 1.1).
   if (CONFIG.PLUS_VISIBLE_DURING_ITI) drawPlus();
+  if (CONFIG.SHOW_POSITION_GHOST_FRAME) drawPositionSlots(null);
   drawHUD(false);
 
   if (nowMs() - itiOnsetMs >= CONFIG.ITI_MS) beginStimulus();
@@ -423,6 +430,7 @@ function drawStimulusScreen() {
   drawPlus();
 
   const trial = trialPool[trialIdxLevel];
+  if (CONFIG.SHOW_POSITION_GHOST_FRAME) drawPositionSlots(trial.position);
   drawDirectionWord(trial.word, trial.position);
   drawHUD(true);
 
@@ -499,6 +507,22 @@ function drawPlus() {
   textStyle(BOLD);
   text('+', width / 2, height / 2);
   textStyle(NORMAL);
+}
+
+/* Ghost frame (Section 1.1): every position in the current level stays
+   visible as a dim empty outline all trial long, so the spatial layout is
+   always salient. activePosition (null during ITI) is skipped here —
+   drawDirectionWord renders it separately, bold and filled. */
+function drawPositionSlots(activePosition) {
+  const h = CONFIG.WORD_TEXT_SIZE + CONFIG.WORD_CARD_PADDING_Y * 2;
+  noFill();
+  stroke(CONFIG.COLORS.SLOT_OUTLINE);
+  strokeWeight(2);
+  for (const d of LEVELS[levelIdx].directions) {
+    if (d === activePosition) continue;
+    const pos = stimulusXY(d);
+    rect(pos.x, pos.y, CONFIG.SLOT_WIDTH, h, 12);
+  }
 }
 
 /* The direction word on a solid card. At the center position the card
