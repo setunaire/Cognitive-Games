@@ -67,6 +67,17 @@ const CONFIG = {
     TIMEOUT: '#F08C00'
   },
 
+  // --- Familiarization (CogGames_Documentation.docx Section 8) ---
+  FAMILIARIZATION: {
+    DEMOS: [1, 1, 1],          // demo steps per level
+    // Practice trials are FIXED, identical for every participant — see FAM_PRACTICE_SETS
+    PASS_THRESHOLD: 0.70,            // logged as passedThreshold; the repeat offer is shown regardless (Section 8.7)
+    PRACTICE_WINDOW_SCALE: 1.5,      // practice windows are relaxed by this factor (1.0 = real timing)
+    FEEDBACK_MS: 600,                // feedback display time (Section 8.6)
+    FEEDBACK_ANSWER_MS: 2500,        // longer feedback when the correct answer is shown (errors/timeouts)
+    RUN_ONCE_PER_PARTICIPANT: true   // warn if the same participant repeats it
+  },
+
   // --- Misc ---
   MENU_TITLE_SIZE: 42,
   INSTRUCTION_TEXT_SIZE: 22
@@ -82,7 +93,6 @@ const STRINGS = {
   // Menu
   btnFamiliarization: 'Familiarization',
   btnAssessment: 'Assessment',
-  familiarizationEmpty: 'The Familiarization phase is not available yet.',
 
   // Metadata form
   metadataTitle: 'Session Information',
@@ -122,7 +132,29 @@ const STRINGS = {
   btnSaveCsv: 'Save Results (CSV)',
   btnReturnMenu: 'Main Menu',
   confirmLeaveUnsaved: 'The results have not been saved yet. Leave anyway?',
-  saveReminder: 'Please save the results before closing this window.'
+  saveReminder: 'Please save the results before closing this window.',
+
+  // --- Familiarization (Section 8) ---
+  famDemoTag: 'DEMO {i} / {n}',
+  famPracticeIntro: 'Practice',
+  famOfferRepeat: 'Would you like to practice once more?',
+  famAlreadyDone: 'This participant already completed Familiarization for this game. Repeat it anyway?',
+  famEndTitle: 'Familiarization Complete',
+  famReadyLine: 'You are ready for the Assessment.',
+  famFeedbackCorrect: 'Correct',
+  famFeedbackIncorrect: 'Incorrect',
+  famFeedbackTimeout: 'Too slow',
+  famPressSpace: '(press SPACE to continue)',
+  famBtnRepeat: 'Practice again',
+  famBtnContinue: 'Continue',
+  famAnswerGo: 'This WAS a target — it needed SPACE.',
+  famAnswerNoGo: 'NOT a target — no key should be pressed.',
+  famDemos: [
+    'Your target: the GREEN CIRCLE.\nPress SPACE whenever it appears — for anything else, press nothing.',
+    'Targets at this level: GREEN CIRCLE and BLUE SQUARE.\nSPACE for either of them — press nothing for anything else.',
+    'Targets at this level: GREEN CIRCLE, BLUE SQUARE and RED TRIANGLE.\nSPACE for any of these — press nothing for everything else.'
+  ],
+
 };
 
 /* ============================================================================
@@ -170,7 +202,10 @@ const STATES = {
   ITI: 'iti',
   STIMULUS: 'stimulus',
   LEVEL_SUMMARY: 'level_summary',
-  END: 'end'
+  END: 'end',
+  FAM_DEMO: 'fam_demo',            // self-paced captioned demonstration (Section 8.3)
+  FAM_MSG: 'fam_msg',              // block intro / repeat notice
+  FAM_FEEDBACK: 'fam_feedback'     // per-trial feedback flash (Section 8.6)
 };
 
 /* ============================================================================
@@ -204,8 +239,21 @@ let csvSaved = false;                // set once the results CSV has been downlo
 
 // UI element references
 let ui = {};
-let familiarizationNotice = '';
 let metadataErrorMsg = '';
+
+// --- Familiarization runtime (Section 8) ---
+let famMode = false;                 // true while the Familiarization flow runs
+let famPlan = [];                    // ordered steps: {type:'demo'|'practice', level, ...}
+let famStepIdx = -1;
+let famDemoIdx = 0;
+let famAttempt = 1;                  // practice attempt number (1 or 2)
+let famPracticeCorrect = 0;
+let famPracticeTotal = 0;
+let famFeedback = 0;                 // last practice result (1 | -1 | 0)
+let famFbAt = 0;                     // feedback onset (session ms)
+let famOfferRepeat = false;          // offering an optional practice repeat (below-threshold accuracy)
+let pendingPhase = 'assessment';     // where onSubmitMetadata routes afterwards
+
 
 /* ============================================================================
    6. p5 LIFECYCLE
@@ -235,6 +283,9 @@ function draw() {
     case STATES.STIMULUS:      drawStimulusScreen(); break;
     case STATES.LEVEL_SUMMARY: drawSummaryScreen(); break;
     case STATES.END:           drawEndScreen(); break;
+    case STATES.FAM_DEMO:      drawFamDemoScreen(); break;
+    case STATES.FAM_MSG:       drawFamMsgScreen(); break;
+    case STATES.FAM_FEEDBACK:  drawFamFeedbackScreen(); break;
   }
 }
 
@@ -245,12 +296,24 @@ function draw() {
 /* ---------- DOM construction ---------- */
 function buildUI() {
   ui.btnFam = createButton(STRINGS.btnFamiliarization).class('game-btn game-btn-secondary');
-  ui.btnFam.mousePressed(() => { familiarizationNotice = STRINGS.familiarizationEmpty; });
+  ui.btnFam.mousePressed(() => {
+    currentPhase = 'familiarization';
+    pendingPhase = 'familiarization';
+    const ls = loadSessionFromStorage();
+    if (ls) {
+      if (famAlreadyDoneFor(ls.participantId) && !confirm(STRINGS.famAlreadyDone)) return;
+      ui.inPart.value(ls.participantId); ui.inSess.value(ls.sessionId); ui.inMusic.value(ls.musicCondition);
+      onSubmitMetadata();
+    } else {
+      state = STATES.METADATA;
+      showOnly('metadata');
+    }
+  });
 
   ui.btnAssess = createButton(STRINGS.btnAssessment).class('game-btn');
   ui.btnAssess.mousePressed(() => {
     currentPhase = 'assessment';
-    familiarizationNotice = '';
+    pendingPhase = 'assessment';
     const stored = loadSessionFromStorage();
     if (stored) {
       // Session Information was entered once at the launcher (main.html) —
@@ -284,6 +347,12 @@ function buildUI() {
 
   ui.btnSave = createButton(STRINGS.btnSaveCsv).class('game-btn');
   ui.btnSave.mousePressed(exportCSV);
+  // Repeat-offer buttons (shown only on the offer screen, Section 8.7)
+  ui.btnFamRepeat = createButton(STRINGS.famBtnRepeat).class('game-btn game-btn-secondary');
+  ui.btnFamRepeat.mousePressed(() => { showOnly('none'); famAcceptRepeat(); });
+  ui.btnFamContinue = createButton(STRINGS.famBtnContinue).class('game-btn');
+  ui.btnFamContinue.mousePressed(() => { famOfferRepeat = false; famDone(); });
+
   ui.btnReturn = createButton(STRINGS.btnReturnMenu).class('game-btn game-btn-secondary');
   ui.btnReturn.mousePressed(() => {
     // Back to the launcher; warn first if the results were never saved
@@ -296,6 +365,9 @@ function buildUI() {
 
 function layoutUI() {
   const cx = windowWidth / 2, cy = windowHeight / 2;
+
+  ui.btnFamRepeat.size(200, 46);   ui.btnFamRepeat.position(cx - 210, cy + 40);
+  ui.btnFamContinue.size(200, 46); ui.btnFamContinue.position(cx + 10, cy + 40);
 
   ui.btnFam.size(220, 46);       ui.btnFam.position(cx - 110, cy - 46);
   ui.btnAssess.size(220, 46);    ui.btnAssess.position(cx - 110, cy + 10);
@@ -316,7 +388,7 @@ function layoutUI() {
 function showOnly(group) {
   const all = ['btnFam', 'btnAssess', 'lblPart', 'inPart', 'lblSess', 'inSess',
                'lblMusic', 'inMusic', 'btnStartExp', 'btnStartLevel',
-               'btnContinue', 'btnSave', 'btnReturn'];
+               'btnContinue', 'btnSave', 'btnReturn', 'btnFamRepeat', 'btnFamContinue'];
   for (const k of all) ui[k].hide();
 
   const groups = {
@@ -325,6 +397,7 @@ function showOnly(group) {
     instructions: ['btnStartLevel'],
     summary: ['btnContinue'],
     end: ['btnSave', 'btnReturn'],
+    famOffer: ['btnFamRepeat', 'btnFamContinue'],
     none: []
   };
   for (const k of (groups[group] || [])) ui[k].show();
@@ -342,12 +415,6 @@ function drawMenuScreen() {
   textSize(18);
   textStyle(NORMAL);
   text(STRINGS.gameSubtitle, width / 2, height / 2 - 105);
-
-  if (familiarizationNotice) {
-    fill(CONFIG.COLORS.TIMEOUT);
-    textSize(16);
-    text(familiarizationNotice, width / 2, height / 2 + 90);
-  }
 }
 
 function drawMetadataScreen() {
@@ -408,7 +475,7 @@ function drawStimulusScreen() {
   drawHUD(true);
 
   // Window expiry: no press. Correct on No-Go, omission (miss) on Go.
-  if (nowMs() - stimulusOnsetMs >= LEVELS[levelIdx].responseWindowMs) {
+  if (nowMs() - stimulusOnsetMs >= effectiveWindowMs()) {
     recordResponse('nogo');
   }
 }
@@ -425,6 +492,8 @@ function drawSummaryScreen() {
 }
 
 function drawEndScreen() {
+  if (currentPhase === 'familiarization') { drawFamEndScreen(); return; }
+
   noStroke();
   fill(CONFIG.COLORS.ACCENT);
   textSize(34);
@@ -499,11 +568,11 @@ function drawHUD(showCountdown) {
 
   const trialTxt = fmtTemplate(STRINGS.hudTrial, {
     i: fmtNum(trialIdxLevel + 1),
-    n: fmtNum(CONFIG.TRIALS_PER_LEVEL)
+    n: fmtNum(trialPool.length)
   });
 
-  let remainingMs = LEVELS[levelIdx].responseWindowMs;
-  if (showCountdown) remainingMs = max(0, LEVELS[levelIdx].responseWindowMs - (nowMs() - stimulusOnsetMs));
+  let remainingMs = effectiveWindowMs();
+  if (showCountdown) remainingMs = max(0, effectiveWindowMs() - (nowMs() - stimulusOnsetMs));
   const timeTxt = fmtTemplate(STRINGS.hudTime, { t: fmtCountdown(remainingMs) });
 
   text(`${trialTxt}      ${timeTxt}`, width / 2, CONFIG.HUD_MARGIN_TOP);
@@ -581,7 +650,8 @@ function onSubmitMetadata() {
   levelIdx = 0;
   trialIdxGlobal = 0;
 
-  enterInstructions();
+  if (pendingPhase === 'familiarization') startFamiliarization();
+  else enterInstructions();
 }
 
 function enterInstructions() {
@@ -618,7 +688,7 @@ function recordResponse(response) {
 
   const trial = trialPool[trialIdxLevel];
   const level = LEVELS[levelIdx];
-  const windowMs = level.responseWindowMs;
+  const windowMs = effectiveWindowMs();
   const pressed = response === 'go';
 
   // responseMs: raw timer at press moment, or window end when no press occurred
@@ -662,7 +732,8 @@ function recordResponse(response) {
     sdtOutcome: sdtOutcome
   });
 
-  advanceTrial();
+  if (famMode) famAfterResponse(result);
+  else advanceTrial();
 }
 
 function advanceTrial() {
@@ -692,6 +763,15 @@ function continueFromSummary() {
    10. INPUT HANDLERS — SPACE is the only response key
    ========================================================================== */
 function keyPressed() {
+  // --- Familiarization input routing (Section 8) ---
+  if (state === STATES.FAM_DEMO)     { if (key === ' ') famAdvanceDemo(); return; }
+  if (state === STATES.FAM_MSG) {
+    // The repeat offer uses on-screen buttons; only the practice intro takes SPACE.
+    if (!famOfferRepeat && key === ' ') famStartPracticeBlock();
+    return;
+  }
+  if (state === STATES.FAM_FEEDBACK) { famAfterFeedback(); return; }
+
   if (key === ' ') {
     if (state === STATES.INSTRUCTIONS) { startLevelFromInstructions(); return; }
     if (state === STATES.LEVEL_SUMMARY) { continueFromSummary(); return; }
@@ -715,6 +795,11 @@ function exportCSV() {
     ['game', CONFIG.GAME_NAME],
     ['inputDevice', CONFIG.INPUT_DEVICE],
     ['phase', currentPhase],
+    ...(currentPhase === 'familiarization' ? [
+      ['practiceAccuracyFinal', famPracticeTotal ? (famPracticeCorrect / famPracticeTotal).toFixed(3) : ''],
+      ['passedThreshold', famPracticeTotal && (famPracticeCorrect / famPracticeTotal) >= CONFIG.FAMILIARIZATION.PASS_THRESHOLD ? 1 : 0],
+      ['famAttempts', famAttempt]
+    ] : []),
     ['sessionStartUTC', sessionStartUtc],
     ['sessionDurationMs', sessionDurationMs],
     ['windowWidth', windowWidth],
@@ -726,19 +811,297 @@ function exportCSV() {
     ['goRatio', CONFIG.GO_RATIO]
   ];
 
+  // Familiarization CSVs keep only identity/summary metadata; the game
+  // configuration belongs to the assessment file (Section 8.10).
+  const FAM_META_KEEP = ['participantID', 'sessionID', 'game', 'phase',
+    'practiceAccuracyFinal', 'passedThreshold', 'famAttempts', 'sessionStartUTC', 'sessionDurationMs'];
+  const metaOut = currentPhase === 'familiarization'
+    ? metaRows.filter(r => FAM_META_KEEP.includes(r[0]))
+    : metaRows;
+
   let rows = [];
   rows.push(['SESSION METADATA']);
-  rows = rows.concat(metaRows);
+  rows = rows.concat(metaOut);
   rows.push([]);
   rows.push(['TRIAL DATA']);
 
-  const headers = Object.keys(trialLogs[0]);
+  // Union of keys across rows (robust to per-row field differences)
+  const headers = [];
+  for (const row of trialLogs) for (const k of Object.keys(row)) if (!headers.includes(k)) headers.push(k);
   rows.push(headers);
   for (const log of trialLogs) rows.push(headers.map(h => log[h]));
 
   const csvText = '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
-  saveFileToDisk(csvText, `${metaData.participantId}_${metaData.sessionId}_${CONFIG.GAME_NAME}.csv`, 'text/csv');
+  saveFileToDisk(csvText, `${metaData.participantId}_${metaData.sessionId}_${CONFIG.GAME_NAME}${currentPhase === 'familiarization' ? '_familiarization' : ''}.csv`, 'text/csv');
   csvSaved = true;
+}
+
+
+/* ============================================================================
+   FAMILIARIZATION ENGINE (CogGames_Documentation.docx Section 8)
+   Flow: ALL rule demos first (self-paced, captioned), then ONE seamless
+   practice run sampling every level in order (real generators, relaxed
+   windows, immediate feedback; errors/timeouts also show the correct
+   answer). 70% pass with an OFFERED repeat (Section 8.7). Only practice
+   trials are logged (attemptNumber / feedbackShown, Section 8.10).
+   ========================================================================== */
+
+function famDoneKey(pid) { return `cogGamesFamDone_${CONFIG.GAME_NAME}_${pid}`; }
+function famAlreadyDoneFor(pid) {
+  return CONFIG.FAMILIARIZATION.RUN_ONCE_PER_PARTICIPANT && localStorage.getItem(famDoneKey(pid)) === '1';
+}
+
+/* Entry point — session vars were already initialized by onSubmitMetadata. */
+function startFamiliarization() {
+  famMode = true;
+  famAttempt = 1;
+  famPracticeCorrect = 0;
+  famPracticeTotal = 0;
+  famOfferRepeat = false;
+  famPlan = buildFamPlan(true);
+  famStepIdx = -1;
+  showOnly('none');
+  famNextStep();
+}
+
+function famNextStep() {
+  famStepIdx++;
+  if (famStepIdx >= famPlan.length) { famFinishAttempt(); return; }
+  const step = famPlan[famStepIdx];
+  levelIdx = step.level;
+  if (step.type === 'demo') {
+    famDemoIdx = 0;
+    state = STATES.FAM_DEMO;
+  } else {
+    trialPool = famPracticePool(step);
+    trialIdxLevel = 0;
+    // Seamless practice: the intro appears once, before the first practice
+    // step; later levels chain directly with no separator screens.
+    if (famPlan.findIndex(s => s.type === 'practice') === famStepIdx) state = STATES.FAM_MSG;
+    else famStartPracticeBlock();
+  }
+}
+
+function famAdvanceDemo() {
+  const step = famPlan[famStepIdx];
+  famDemoIdx++;                        // demos are unscored and not logged
+  if (famDemoIdx >= step.items.length) famNextStep();
+}
+
+function famStartPracticeBlock() {
+  releaseFocus();
+  
+  beginIti();
+}
+
+/* Called from the trial-exit point instead of advanceTrial() while famMode. */
+function famAfterResponse(result) {
+  const row = trialLogs[trialLogs.length - 1];
+  // A missed Go target is presented as "missed / too slow" (matching the
+  // Assessment summary), but still counts as an error toward accuracy.
+  famFeedback = (result === -1 && row.sdtOutcome === 'miss') ? 0 : result;
+  row.attemptNumber = famAttempt;
+  row.feedbackShown = famFeedback === 1 ? 'correct' : (famFeedback === -1 ? 'incorrect' : 'timeout');
+  famPracticeTotal++;
+  if (result === 1) famPracticeCorrect++;
+  famFbAt = nowMs();
+  trialIdxGlobal++;                  // advanceTrial() is bypassed in famMode
+  state = STATES.FAM_FEEDBACK;
+}
+
+function famAfterFeedback() {
+  trialIdxLevel++;
+  if (trialIdxLevel >= trialPool.length) famNextStep();
+  else { beginIti(); }
+}
+
+function famFinishAttempt() {
+  // EVERYONE gets the optional repeat offer (uniform experience; no accuracy
+  // threshold in the flow — accuracy is only logged for later screening).
+  // Release any pointer lock and restore the cursor so the offer buttons are
+  // usable (Memory Matrix hides the cursor during recall).
+  if (document.pointerLockElement) document.exitPointerLock();
+  cursor();
+  famOfferRepeat = true;
+  state = STATES.FAM_MSG;
+  showOnly('famOffer');
+}
+
+function famAcceptRepeat() {
+  famOfferRepeat = false;
+  famAttempt++;
+  famPracticeCorrect = 0;
+  famPracticeTotal = 0;
+  famPlan = buildFamPlan(false);     // practice blocks only on a repeat
+  famStepIdx = -1;
+  famNextStep();
+}
+
+/* Response window for the current trial: relaxed during familiarization
+   practice so participants learn the rules without the real time pressure. */
+function effectiveWindowMs() {
+  const base = LEVELS[levelIdx].responseWindowMs;
+  return famMode ? Math.round(base * CONFIG.FAMILIARIZATION.PRACTICE_WINDOW_SCALE) : base;
+}
+
+function famDone() {
+  if (document.pointerLockElement) document.exitPointerLock();
+  cursor();
+  if (CONFIG.FAMILIARIZATION.RUN_ONCE_PER_PARTICIPANT) {
+    try { localStorage.setItem(famDoneKey(metaData.participantId), '1'); } catch (e) {}
+  }
+  state = STATES.END;
+  showOnly('end');
+}
+
+/* ---------- Familiarization screens ---------- */
+function drawFamMsgScreen() {
+  noStroke();
+  fill(CONFIG.COLORS.ACCENT);
+  textSize(26);
+  textStyle(BOLD);
+  text(famOfferRepeat ? STRINGS.famOfferRepeat : STRINGS.famPracticeIntro, width / 2, height / 2 - 40);
+  textStyle(NORMAL);
+  fill(CONFIG.COLORS.HUD);
+  textSize(16);
+  if (!famOfferRepeat) text(STRINGS.famPressSpace, width / 2, height / 2 + 120);
+}
+
+function drawFamFeedbackScreen() {
+  const F = CONFIG.FAMILIARIZATION;
+  const col = famFeedback === 1 ? CONFIG.COLORS.CORRECT
+            : famFeedback === -1 ? CONFIG.COLORS.INCORRECT : CONFIG.COLORS.TIMEOUT;
+  const label = famFeedback === 1 ? STRINGS.famFeedbackCorrect
+              : famFeedback === -1 ? STRINGS.famFeedbackIncorrect : STRINGS.famFeedbackTimeout;
+  // Feedback overlays the trial display itself — no separate page (Section 8.6)
+  drawFamTrialUnderlay();
+  noFill();
+  stroke(col);
+  strokeWeight(14);
+  rect(width / 2, height / 2, width - 14, height - 14);
+  noStroke();
+  fill(col);
+  textSize(32);
+  textStyle(BOLD);
+  text(label, width / 2, 46);
+  textStyle(NORMAL);
+  if (famFeedback !== 1) drawFamAnswerHint();   // errors/timeouts: show the correct response
+  if (nowMs() - famFbAt >= (famFeedback === 1 ? F.FEEDBACK_MS : F.FEEDBACK_ANSWER_MS)) famAfterFeedback();
+}
+
+function drawFamDemoScreen() {
+  const step = famPlan[famStepIdx];
+  const item = step.items[famDemoIdx];
+  drawFamDemoStimulus(item);
+  // Caption card
+  const capW = Math.min(width - 80, 860);
+  noStroke();
+  fill('#FFFFFF');
+  stroke('#CED4DA');
+  strokeWeight(2);
+  rect(width / 2, height - 110, capW, 130, 14);
+  noStroke();
+  fill(CONFIG.COLORS.TEXT);
+  textSize(19);
+  text(item.caption, width / 2, height - 125);
+  fill(CONFIG.COLORS.HUD);
+  textSize(14);
+  text(STRINGS.famPressSpace, width / 2, height - 62);
+  // Demo tag
+  fill(CONFIG.COLORS.ACCENT);
+  textSize(16);
+  textStyle(BOLD);
+  text(fmtTemplate(STRINGS.famDemoTag, { i: fmtNum(famDemoIdx + 1), n: fmtNum(step.items.length) }), width / 2, 60);
+  textStyle(NORMAL);
+}
+
+function drawFamEndScreen() {
+  noStroke();
+  fill(CONFIG.COLORS.ACCENT);
+  textSize(34);
+  textStyle(BOLD);
+  text(STRINGS.famEndTitle, width / 2, height / 2 - 150);
+  textStyle(NORMAL);
+  fill(CONFIG.COLORS.CORRECT);
+  textSize(20);
+  text(STRINGS.famReadyLine, width / 2, height / 2 - 50);
+  fill(CONFIG.COLORS.TIMEOUT);
+  textSize(15);
+  text(STRINGS.saveReminder, width / 2, height / 2 + 165);
+}
+
+/* ---------- Go/No-Go: demo script, practice pool, demo renderer ---------- */
+function buildFamPlan(withDemos) {
+  const F = CONFIG.FAMILIARIZATION;
+  const demoDefs = [
+    [ { targets: LEVELS[0].goTargets, caption: STRINGS.famDemos[0] } ],
+    [ { targets: LEVELS[1].goTargets, caption: STRINGS.famDemos[1] } ],
+    [ { targets: LEVELS[2].goTargets, caption: STRINGS.famDemos[2] } ]
+  ];
+  const plan = [];
+  for (let l = 0; l < LEVELS.length; l++) {
+    // Per-level familiarization: this game re-maps its rules at every level,
+    // so each level's demo card comes right before that level's practice.
+    if (withDemos && F.DEMOS[l] > 0) plan.push({ type: 'demo', level: l, items: demoDefs[l].slice(0, F.DEMOS[l]) });
+    const setL = famPracticeSet()[l];
+    if (setL.length) plan.push({ type: 'practice', level: l, n: setL.length });
+  }
+  return plan;
+}
+
+/* ---------- FIXED practice sets (Section 8.3) ----------
+   Every participant sees the SAME practice trials in the same order.
+   Attempt 1 uses set A; an accepted repeat uses the next set (wrapping). */
+function famT(color, shape, trialType) {
+  return { color: color, shape: shape, trialType: trialType };
+}
+
+const FAM_PRACTICE_SETS = [
+  [ // set A
+    [ famT('green', 'circle', 'go'),   famT('red', 'circle', 'nogo'),   famT('green', 'square', 'nogo'), famT('red', 'square', 'nogo') ],
+    [ famT('blue', 'square', 'go'),    famT('blue', 'circle', 'nogo'),  famT('red', 'square', 'nogo'),   famT('green', 'circle', 'go') ],
+    [ famT('red', 'triangle', 'go'),   famT('blue', 'triangle', 'nogo'), famT('green', 'square', 'nogo'),
+      famT('green', 'circle', 'go'),   famT('blue', 'square', 'go'),     famT('red', 'circle', 'nogo') ]
+  ],
+  [ // set B
+    [ famT('red', 'square', 'nogo'),   famT('green', 'circle', 'go'),   famT('green', 'square', 'nogo'), famT('red', 'circle', 'nogo') ],
+    [ famT('green', 'circle', 'go'),   famT('red', 'square', 'nogo'),   famT('blue', 'circle', 'nogo'),  famT('blue', 'square', 'go') ],
+    [ famT('blue', 'square', 'go'),    famT('red', 'circle', 'nogo'),   famT('red', 'triangle', 'go'),
+      famT('green', 'circle', 'go'),   famT('blue', 'triangle', 'nogo'), famT('green', 'square', 'nogo') ]
+  ]
+];
+
+function famPracticeSet() {
+  return FAM_PRACTICE_SETS[(famAttempt - 1) % FAM_PRACTICE_SETS.length];
+}
+
+function famPracticePool(step) {
+  return famPracticeSet()[step.level];
+}
+
+function drawFamDemoStimulus(item) {
+  // The level's FULL cumulative Go-target set, side by side
+  const gap = 230;
+  const x0 = width / 2 - (item.targets.length - 1) * gap / 2;
+  for (let i = 0; i < item.targets.length; i++)
+    drawStimulusShape(item.targets[i].color, item.targets[i].shape, x0 + i * gap, height / 2 - 60, CONFIG.STIMULUS_SIZE * 0.85);
+}
+
+/* Correct-response hint for error/timeout feedback (Section 8.6). */
+function drawFamAnswerHint() {
+  const trial = trialPool[trialIdxLevel];
+  noStroke();
+  fill(CONFIG.COLORS.TEXT);
+  textSize(26);
+  textStyle(BOLD);
+  text(trial.trialType === 'go' ? STRINGS.famAnswerGo : STRINGS.famAnswerNoGo, width / 2, 92);
+  textStyle(NORMAL);
+}
+
+/* The trial display shown underneath familiarization feedback. */
+function drawFamTrialUnderlay() {
+  const trial = trialPool[trialIdxLevel];
+  drawStimulusShape(trial.color, trial.shape, width / 2, height / 2, CONFIG.STIMULUS_SIZE);
 }
 
 /* ============================================================================
