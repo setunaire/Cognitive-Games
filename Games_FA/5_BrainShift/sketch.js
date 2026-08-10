@@ -92,7 +92,7 @@ const CONFIG = {
 
   // --- Familiarization (CogGames_Documentation.docx Section 8) ---
   FAMILIARIZATION: {
-    DEMOS: [5, 0, 1],          // demo steps per level
+    DEMOS: [5, 0, 0],          // demo steps per level
     // Practice trials are FIXED, identical for every participant — see FAM_PRACTICE_SETS
     PASS_THRESHOLD: 0.70,            // logged as passedThreshold; the repeat offer is shown regardless (Section 8.7)
     PRACTICE_WINDOW_SCALE: 1.5,      // practice windows are relaxed by this factor (1.0 = real timing)
@@ -182,8 +182,7 @@ const STRINGS = {
     'جعبهٔ بالا-چپ می‌پرسد: آیا رقم زوج است؟\n۴ زوج است — پاسخ بله (→). رنگ اینجا اهمیتی ندارد.',
     'جعبهٔ بالا-راست می‌پرسد: آیا رقم فرد است؟\n۷ فرد است — پاسخ بله (→).',
     'جعبهٔ پایین-چپ می‌پرسد: آیا رنگ گرم است؟\nآبی سرد است، نه گرم — پاسخ خیر (←). مقدار رقم اینجا مهم نیست.',
-    'جعبهٔ پایین-راست می‌پرسد: آیا رنگ سرد است؟\nسبز سرد است — پاسخ بله (→).',
-    'در مرحلهٔ آخر برچسب جعبه‌ها پنهان می‌شود — جای هر جعبه را به خاطر بسپارید.\nبالا = عدد (زوج چپ، فرد راست)؛ پایین = رنگ (گرم چپ، سرد راست).'
+    'جعبهٔ پایین-راست می‌پرسد: آیا رنگ سرد است؟\nسبز سرد است — پاسخ بله (→).'
   ],
 };
 
@@ -1161,7 +1160,7 @@ function buildFamPlan(withDemos) {
       { n: 3, c: 'blue',   pos: 'bottomLeft',  labels: true, caption: STRINGS.famDemos[3] },
       { n: 8, c: 'green',  pos: 'bottomRight', labels: true, caption: STRINGS.famDemos[4] } ],
     [],
-    [ { n: 5, c: 'purple', pos: 'topLeft',     labels: false, caption: STRINGS.famDemos[5] } ]
+    []
   ];
   const plan = [];
   if (withDemos) {
@@ -1187,7 +1186,7 @@ function famT(num, color, position, domain, category, answer, switchType) {
 }
 
 const FAM_PRACTICE_SETS = [
-  [ // set A — all 8 box-x-answer states exactly once; last 2 run unlabeled (L3)
+  [ // set A — all 8 box-x-answer states exactly once
     [ famT(4, 'blue',   'topLeft',     'number', 'even', 'yes', 'first'),
       famT(8, 'red',    'topRight',    'number', 'odd',  'no',  'repeat'),
       famT(7, 'yellow', 'bottomRight', 'color',  'cool', 'no',  'first'),

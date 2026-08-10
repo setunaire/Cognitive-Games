@@ -1132,6 +1132,8 @@ function drawFamDemoStimulus(item) {
   push();
   translate(0, -70);                 // keep the demo stimulus clear of the caption card
   drawPlus();
+  // Mirror drawStimulusScreen so the demo shows the same ghost frame as the task
+  if (CONFIG.SHOW_POSITION_GHOST_FRAME) drawPositionSlots(item.position);
   drawDirectionWord(item.word, item.position);
   pop();
 }

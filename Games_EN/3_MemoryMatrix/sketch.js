@@ -1214,7 +1214,7 @@ function drawFamEndScreen() {
 }
 
 /* ---------- Memory Matrix: 3-frame demo walkthrough + L1 practice ---------- */
-const FAM_DEMO_TARGETS = ['0,1', '1,3', '2,0', '3,2'];   // fixed (row,col) demo cells
+const FAM_DEMO_TARGETS = ['0,2', '1,0', '2,4', '4,1'];   // fixed (row,col) demo cells — 5x5, L1's 4-target load
 
 function buildFamPlan(withDemos) {
   const F = CONFIG.FAMILIARIZATION;
@@ -1236,22 +1236,25 @@ function buildFamPlan(withDemos) {
 /* ---------- FIXED practice sets (Section 8.3) ----------
    Every participant sees the SAME practice trials in the same order.
    Attempt 1 uses set A; an accepted repeat uses the next set (wrapping). */
-function famT(stage, nTargets, cells) {
-  return { stage: stage, gridSize: 4, nTargets: nTargets, targetSet: new Set(cells) };
+function famT(nTargets, cells) {
+  return { gridSize: LEVELS[0].gridSize, nTargets: nTargets, targetSet: new Set(cells) };
 }
 
+/* All practice runs at Level 1's real load (4 targets on the 5x5 grid): the
+   assessment has no within-level stages, so practice mirrors what L1 actually
+   presents. Patterns are scatters — no full rows, columns or diagonals. */
 const FAM_PRACTICE_SETS = [
-  [ // set A — scatter-style patterns (no rows/diagonals/blocks), loads 4-4-5-5
-    [ famT(1, 4, ['0,0', '1,2', '2,3', '3,1']),
-      famT(1, 4, ['0,3', '1,0', '2,2', '2,3']),
-      famT(2, 5, ['0,0', '0,3', '1,1', '2,3', '3,1']),
-      famT(2, 5, ['0,2', '1,0', '2,1', '2,2', '3,3']) ], [], []
+  [ // set A
+    [ famT(4, ['0,1', '1,3', '2,0', '4,2']),
+      famT(4, ['0,4', '1,1', '3,0', '4,3']),
+      famT(4, ['0,2', '2,4', '3,1', '4,3']),
+      famT(4, ['1,0', '2,2', '3,4', '4,1']) ], [], []
   ],
   [ // set B
-    [ famT(1, 4, ['0,2', '1,0', '2,3', '3,1']),
-      famT(1, 4, ['0,0', '1,2', '1,3', '3,0']),
-      famT(2, 5, ['0,1', '1,2', '2,0', '2,2', '3,3']),
-      famT(2, 5, ['0,0', '0,2', '1,3', '2,1', '3,2']) ], [], []
+    [ famT(4, ['0,3', '1,0', '2,2', '4,4']),
+      famT(4, ['0,0', '1,2', '3,3', '4,1']),
+      famT(4, ['1,4', '2,1', '3,0', '4,2']),
+      famT(4, ['0,2', '1,4', '2,0', '3,3']) ], [], []
   ]
 ];
 
@@ -1300,13 +1303,14 @@ function drawFamTrialUnderlay() {
 }
 
 function drawFamDemoStimulus(item) {
-  computeGridGeometry(4);
+  const n = LEVELS[0].gridSize;                   // demo mirrors the real grid
+  computeGridGeometry(n);
   // Raise the demo grid so it stays clear of the caption card at the bottom
-  gridOriginY = Math.max(70, Math.round((height - 200) / 2 - (cellSizePx * 4) / 2));
+  gridOriginY = Math.max(70, Math.round((height - 200) / 2 - (cellSizePx * n) / 2));
   const targets = new Set(FAM_DEMO_TARGETS);
   if (item.frame === 'retention') return;         // blank frame
-  for (let row = 0; row < 4; row++) {
-    for (let col = 0; col < 4; col++) {
+  for (let row = 0; row < n; row++) {
+    for (let col = 0; col < n; col++) {
       const key = `${row},${col}`;
       const cx = gridOriginX + col * cellSizePx + cellSizePx / 2;
       const cy = gridOriginY + row * cellSizePx + cellSizePx / 2;
@@ -1323,8 +1327,8 @@ function drawFamDemoStimulus(item) {
     }
   }
   if (item.frame === 'recall') {
-    // Done button visual (mirrors the real layout for the 4x4 grid)
-    const by = gridOriginY + cellSizePx * 4 + CONFIG.DONE_BTN_MARGIN + CONFIG.DONE_BTN_H / 2;
+    // Done button visual (mirrors the real recall layout)
+    const by = gridOriginY + cellSizePx * n + CONFIG.DONE_BTN_MARGIN + CONFIG.DONE_BTN_H / 2;
     noStroke();
     fill(CONFIG.COLORS.DONE_BG);
     rect(width / 2, by, CONFIG.DONE_BTN_W, CONFIG.DONE_BTN_H, 12);

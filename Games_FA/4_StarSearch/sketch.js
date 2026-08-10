@@ -1316,15 +1316,19 @@ function famT(targetColor, targetShape, d1Color, d2Shape, d1Count, d2Count) {
            d1Color: d1Color, d2Shape: d2Shape, d1Count: d1Count, d2Count: d2Count };
 }
 
+/* L1 practice covers BOTH pop-out kinds, matching the assessment's 20/20
+   split: [20,0] = colour singleton (distractors share the target's shape),
+   [0,20] = shape singleton (distractors share the target's colour). The two
+   sets present them in opposite order. */
 const FAM_PRACTICE_SETS = [
-  [ // set A — 2 feature (pop-out), then 2 conjunction
+  [ // set A — colour singleton, shape singleton, then 2 conjunction
     [ famT('red', 'circle', 'royalblue', 'square', 20, 0),
-      famT('gold', 'square', 'purple', 'circle', 20, 0) ],
+      famT('gold', 'square', 'purple', 'circle', 0, 20) ],
     [ famT('green', 'circle', 'red', 'square', 12, 8),
       famT('purple', 'diamond', 'darkturquoise', 'ring', 12, 8) ], []
   ],
-  [ // set B
-    [ famT('green', 'diamond', 'deeppink', 'circle', 20, 0),
+  [ // set B — shape singleton first, then colour singleton
+    [ famT('green', 'diamond', 'deeppink', 'circle', 0, 20),
       famT('darkturquoise', 'hexagon', 'red', 'circle', 20, 0) ],
     [ famT('gold', 'pentagon', 'green', 'square', 12, 8),
       famT('saddlebrown', 'ring', 'royalblue', 'diamond', 12, 8) ], []
