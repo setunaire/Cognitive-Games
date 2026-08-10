@@ -88,8 +88,7 @@ const CONFIG = {
   FAMILIARIZATION: {
     DEMOS: [1, 1, 0],          // demo steps per level
     // Practice trials are FIXED, identical for every participant — see FAM_PRACTICE_SETS
-    PASS_THRESHOLD: 0.70,            // logged as passedThreshold; the repeat offer is shown regardless (Section 8.7)
-    PRACTICE_WINDOW_SCALE: 1.5,      // practice windows are relaxed by this factor (1.0 = real timing)
+    PRACTICE_WINDOW_MS: 5000,        // flat practice window, all levels — hardest practiced level is L2 (2400 ms floor)
     FEEDBACK_MS: 600,                // feedback display time (Section 8.6)
     FEEDBACK_ANSWER_MS: 2500,        // longer feedback when the correct answer is shown (errors/timeouts)
     RUN_ONCE_PER_PARTICIPANT: true   // warn if the same participant repeats it
@@ -284,7 +283,7 @@ let famPracticeCorrect = 0;
 let famPracticeTotal = 0;
 let famFeedback = 0;                 // last practice result (1 | -1 | 0)
 let famFbAt = 0;                     // feedback onset (session ms)
-let famOfferRepeat = false;          // offering an optional practice repeat (below-threshold accuracy)
+let famOfferRepeat = false;          // offering the optional practice repeat (shown to everyone)
 let pendingPhase = 'assessment';     // where onSubmitMetadata routes afterwards
 
 
@@ -963,7 +962,6 @@ function exportCSV() {
     ['phase', currentPhase],
     ...(currentPhase === 'familiarization' ? [
       ['practiceAccuracyFinal', famPracticeTotal ? (famPracticeCorrect / famPracticeTotal).toFixed(3) : ''],
-      ['passedThreshold', famPracticeTotal && (famPracticeCorrect / famPracticeTotal) >= CONFIG.FAMILIARIZATION.PASS_THRESHOLD ? 1 : 0],
       ['famAttempts', famAttempt]
     ] : []),
     ['sessionStartUTC', sessionStartUtc],
@@ -980,7 +978,7 @@ function exportCSV() {
   // Familiarization CSVs keep only identity/summary metadata; the game
   // configuration belongs to the assessment file (Section 8.10).
   const FAM_META_KEEP = ['participantID', 'sessionID', 'game', 'phase',
-    'practiceAccuracyFinal', 'passedThreshold', 'famAttempts', 'sessionStartUTC', 'sessionDurationMs'];
+    'practiceAccuracyFinal', 'famAttempts', 'sessionStartUTC', 'sessionDurationMs'];
   const metaOut = currentPhase === 'familiarization'
     ? metaRows.filter(r => FAM_META_KEEP.includes(r[0]))
     : metaRows;
@@ -1178,8 +1176,8 @@ function famAfterFeedback() {
 }
 
 function famFinishAttempt() {
-  // EVERYONE gets the optional repeat offer (uniform experience; no accuracy
-  // threshold in the flow — accuracy is only logged for later screening).
+  // EVERYONE gets the optional repeat offer (uniform experience; there is no
+  // pass criterion — practiceAccuracyFinal is logged for screening, ungated).
   // Release any pointer lock and restore the cursor so the offer buttons are
   // usable (Memory Matrix hides the cursor during recall).
   if (document.pointerLockElement) document.exitPointerLock();
@@ -1199,11 +1197,12 @@ function famAcceptRepeat() {
   famNextStep();
 }
 
-/* Response window for the current trial: relaxed during familiarization
-   practice so participants learn the rules without the real time pressure. */
+/* Response window for the current trial. Familiarization uses ONE flat window
+   per game (Section 8.9), deliberately not derived from the assessment ramp so
+   that retuning a level never silently moves practice timing. */
 function effectiveWindowMs() {
-  const base = LEVELS[levelIdx].responseWindowMs;
-  return famMode ? Math.round(base * CONFIG.FAMILIARIZATION.PRACTICE_WINDOW_SCALE) : base;
+  return famMode ? CONFIG.FAMILIARIZATION.PRACTICE_WINDOW_MS
+                 : LEVELS[levelIdx].responseWindowMs;
 }
 
 function famDone() {

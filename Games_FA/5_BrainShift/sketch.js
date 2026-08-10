@@ -51,7 +51,7 @@ const CONFIG = {
 
   // --- Timing (Sections 0.5 / 0.6 / 5.6) ---
   ITI_MS: 200,                         // blank inter-trial interval (longer than other games)
-  RESPONSE_WINDOW_MS: [3000, 2200, 1300], // L1 / L2 / L3 — per doc §0.6: L3 1300 ms lands ~62%; L1/L2 kept generous to preserve correct-trial count for the switch-cost RT contrast
+  RESPONSE_WINDOW_MS: [3000, 3000, 2000], // L1 / L2 / L3 — L3 sits AT its 2000 ms floor (switch RT ~1150 ms + 2σ): any tighter and the window censors switch trials more than repeats, shrinking the very switch cost this game measures. L1 == L2 so mixing cost (L2 − L1) is read at a constant window.
   ANTICIPATORY_THRESHOLD_MS: 150,      // RT below this => anticipatoryResponse = 1
 
   // --- Switch rates per level (Section 5.4) ---
@@ -94,8 +94,7 @@ const CONFIG = {
   FAMILIARIZATION: {
     DEMOS: [5, 0, 0],          // demo steps per level
     // Practice trials are FIXED, identical for every participant — see FAM_PRACTICE_SETS
-    PASS_THRESHOLD: 0.70,            // logged as passedThreshold; the repeat offer is shown regardless (Section 8.7)
-    PRACTICE_WINDOW_SCALE: 1.5,      // practice windows are relaxed by this factor (1.0 = real timing)
+    PRACTICE_WINDOW_MS: 4000,        // flat practice window, all levels — hardest practiced level is L2 (2000 ms floor)
     FEEDBACK_MS: 600,                // feedback display time (Section 8.6)
     FEEDBACK_ANSWER_MS: 2500,        // longer feedback when the correct answer is shown (errors/timeouts)
     RUN_ONCE_PER_PARTICIPANT: true   // warn if the same participant repeats it
@@ -274,7 +273,7 @@ let famPracticeCorrect = 0;
 let famPracticeTotal = 0;
 let famFeedback = 0;                 // last practice result (1 | -1 | 0)
 let famFbAt = 0;                     // feedback onset (session ms)
-let famOfferRepeat = false;          // offering an optional practice repeat (below-threshold accuracy)
+let famOfferRepeat = false;          // offering the optional practice repeat (shown to everyone)
 let pendingPhase = 'assessment';     // where onSubmitMetadata routes afterwards
 
 
@@ -918,7 +917,6 @@ function exportCSV() {
     ['phase', currentPhase],
     ...(currentPhase === 'familiarization' ? [
       ['practiceAccuracyFinal', famPracticeTotal ? (famPracticeCorrect / famPracticeTotal).toFixed(3) : ''],
-      ['passedThreshold', famPracticeTotal && (famPracticeCorrect / famPracticeTotal) >= CONFIG.FAMILIARIZATION.PASS_THRESHOLD ? 1 : 0],
       ['famAttempts', famAttempt]
     ] : []),
     ['sessionStartUTC', sessionStartUtc],
@@ -936,7 +934,7 @@ function exportCSV() {
   // Familiarization CSVs keep only identity/summary metadata; the game
   // configuration belongs to the assessment file (Section 8.10).
   const FAM_META_KEEP = ['participantID', 'sessionID', 'game', 'phase',
-    'practiceAccuracyFinal', 'passedThreshold', 'famAttempts', 'sessionStartUTC', 'sessionDurationMs'];
+    'practiceAccuracyFinal', 'famAttempts', 'sessionStartUTC', 'sessionDurationMs'];
   const metaOut = currentPhase === 'familiarization'
     ? metaRows.filter(r => FAM_META_KEEP.includes(r[0]))
     : metaRows;
@@ -1036,8 +1034,8 @@ function famAfterFeedback() {
 }
 
 function famFinishAttempt() {
-  // EVERYONE gets the optional repeat offer (uniform experience; no accuracy
-  // threshold in the flow — accuracy is only logged for later screening).
+  // EVERYONE gets the optional repeat offer (uniform experience; there is no
+  // pass criterion — practiceAccuracyFinal is logged for screening, ungated).
   // Release any pointer lock and restore the cursor so the offer buttons are
   // usable (Memory Matrix hides the cursor during recall).
   if (document.pointerLockElement) document.exitPointerLock();
@@ -1057,11 +1055,12 @@ function famAcceptRepeat() {
   famNextStep();
 }
 
-/* Response window for the current trial: relaxed during familiarization
-   practice so participants learn the rules without the real time pressure. */
+/* Response window for the current trial. Familiarization uses ONE flat window
+   per game (Section 8.9), deliberately not derived from the assessment ramp so
+   that retuning a level never silently moves practice timing. */
 function effectiveWindowMs() {
-  const base = LEVELS[levelIdx].responseWindowMs;
-  return famMode ? Math.round(base * CONFIG.FAMILIARIZATION.PRACTICE_WINDOW_SCALE) : base;
+  return famMode ? CONFIG.FAMILIARIZATION.PRACTICE_WINDOW_MS
+                 : LEVELS[levelIdx].responseWindowMs;
 }
 
 function famDone() {
@@ -1186,25 +1185,27 @@ function famT(num, color, position, domain, category, answer, switchType) {
 }
 
 const FAM_PRACTICE_SETS = [
-  [ // set A — all 8 box-x-answer states exactly once
+  [ // set A — all 8 box x answer states exactly once across L1+L2
     [ famT(4, 'blue',   'topLeft',     'number', 'even', 'yes', 'first'),
       famT(8, 'red',    'topRight',    'number', 'odd',  'no',  'repeat'),
       famT(7, 'yellow', 'bottomRight', 'color',  'cool', 'no',  'first'),
       famT(3, 'orange', 'bottomLeft',  'color',  'warm', 'yes', 'repeat') ],
-    [ famT(6, 'purple', 'bottomLeft',  'color',  'warm', 'no',  'first'),
-      famT(5, 'green',  'topRight',    'number', 'odd',  'yes', 'switch') ],
-    [ famT(2, 'blue',   'bottomRight', 'color',  'cool', 'yes', 'first'),
-      famT(9, 'orange', 'topLeft',     'number', 'even', 'no',  'switch') ]
+    [ famT(7, 'blue',   'bottomRight', 'color',  'cool', 'yes', 'first'),
+      famT(3, 'green',  'topLeft',     'number', 'even', 'no',  'switch'),
+      famT(5, 'red',    'topRight',    'number', 'odd',  'yes', 'repeat'),
+      famT(8, 'purple', 'bottomLeft',  'color',  'warm', 'no',  'switch') ],
+    []                                 // L3 adds no new rule (only switchRate 0.4 -> 0.6)
   ],
   [ // set B
     [ famT(6, 'red',    'topLeft',     'number', 'even', 'yes', 'first'),
       famT(2, 'green',  'topRight',    'number', 'odd',  'no',  'repeat'),
       famT(5, 'orange', 'bottomRight', 'color',  'cool', 'no',  'first'),
       famT(8, 'red',    'bottomLeft',  'color',  'warm', 'yes', 'repeat') ],
-    [ famT(4, 'blue',   'bottomLeft',  'color',  'warm', 'no',  'first'),
-      famT(3, 'yellow', 'topRight',    'number', 'odd',  'yes', 'switch') ],
-    [ famT(7, 'purple', 'bottomRight', 'color',  'cool', 'yes', 'first'),
-      famT(1, 'blue',   'topLeft',     'number', 'even', 'no',  'switch') ]
+    [ famT(7, 'red',    'topLeft',     'number', 'even', 'no',  'first'),
+      famT(4, 'blue',   'bottomRight', 'color',  'cool', 'yes', 'switch'),
+      famT(6, 'green',  'bottomLeft',  'color',  'warm', 'no',  'repeat'),
+      famT(9, 'orange', 'topRight',    'number', 'odd',  'yes', 'switch') ],
+    []
   ]
 ];
 
