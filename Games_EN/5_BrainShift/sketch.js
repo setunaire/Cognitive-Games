@@ -848,14 +848,15 @@ function recordResponse(response) {
     result: result,
     responseMs: responseMs,
     reactionTime: reactionTime,
-    anticipatoryResponse: (!isTimeout && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0,
     // --- Brain Shift-specific fields (Section 5.7) ---
     stimulusNumber: trial.stimulusNumber,
     stimulusColor: trial.stimulusColor,
     stimulusPosition: trial.stimulusPosition,
     taskDomain: trial.taskDomain,
     expectedCategory: trial.expectedCategory,
-    switchType: trial.switchType
+    switchType: trial.switchType,
+    // Common field (Section 0.10), kept last so the game-specific columns stay contiguous
+    anticipatoryResponse: (!isTimeout && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0
   });
 
   if (famMode) famAfterResponse(result);

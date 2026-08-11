@@ -917,7 +917,6 @@ function recordResponse(response) {
     result: result,
     responseMs: responseMs,
     reactionTime: reactionTime,
-    anticipatoryResponse: (!isTimeout && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0,
     // --- Chalkboard-specific fields (Section 6.7) ---
     leftExpr: exprToLogString(trial.leftExpr),
     rightExpr: exprToLogString(trial.rightExpr),
@@ -927,7 +926,9 @@ function recordResponse(response) {
     operators: collectOperators(trial),
     nTermsLeft: trial.leftExpr.terms.length,
     nTermsRight: trial.rightExpr.terms.length,
-    hasPrecedence: hasPrecedence(trial) ? 1 : 0
+    hasPrecedence: hasPrecedence(trial) ? 1 : 0,
+    // Common field (Section 0.10), kept last so the game-specific columns stay contiguous
+    anticipatoryResponse: (!isTimeout && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0
   });
 
   if (famMode) famAfterResponse(result);

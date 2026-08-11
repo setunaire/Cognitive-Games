@@ -831,7 +831,6 @@ function finishTrial(response) {
     result: result,
     responseMs: responseMs,
     reactionTime: reactionTime,
-    anticipatoryResponse: (!isTimeout && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0,
     // --- Memory Matrix-specific fields (Section 3.7) ---
     nTargets: trial.nTargets,
     targetCells: [...targetSet].join(';'),
@@ -845,7 +844,9 @@ function finishTrial(response) {
     gridOriginX: gridOriginX,
     gridOriginY: gridOriginY,
     cellSizePx: cellSizePx,
-    pointerLockActive: lockActiveAtRecall
+    pointerLockActive: lockActiveAtRecall,
+    // Common field (Section 0.10), kept last so the game-specific columns stay contiguous
+    anticipatoryResponse: (!isTimeout && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0
   });
 
   if (famMode) famAfterResponse(result);

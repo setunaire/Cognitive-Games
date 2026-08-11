@@ -869,7 +869,6 @@ function finishTrial(clickPos) {
     result: result,
     responseMs: responseMs,
     reactionTime: reactionTime,
-    anticipatoryResponse: (!isTimeout && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0,
     // --- Star Search-specific fields (Section 4.8) ---
     // Per-trial, not per-level: L1 alternates colour and shape singletons
     // 20/20, and those are separate pop-out conditions (Section 4.8).
@@ -890,7 +889,9 @@ function finishTrial(clickPos) {
     clickY: isTimeout ? -1 : Math.round(clickPos.y),
     clickDistance: isTimeout ? -1 : Math.round(dist(clickPos.x, clickPos.y, target.x, target.y)),
     clickedItemType: clickedItemType,
-    emptyClickCount: emptyClicks
+    emptyClickCount: emptyClicks,
+    // Common field (Section 0.10), kept last so the game-specific columns stay contiguous
+    anticipatoryResponse: (!isTimeout && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0
   });
 
   if (famMode) famAfterResponse(result);

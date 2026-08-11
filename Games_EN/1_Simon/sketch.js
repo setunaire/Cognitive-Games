@@ -775,10 +775,11 @@ function recordResponse(responseMeaning) {
     result: result,
     responseMs: responseMs,
     reactionTime: reactionTime,
-    anticipatoryResponse: (!isTimeout && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0,
     // --- Simon-specific fields (Section 1.6) ---
     stimulusPosition: trial.position,
-    congruency: trial.congruency
+    congruency: trial.congruency,
+    // Common field (Section 0.10), kept last so the game-specific columns stay contiguous
+    anticipatoryResponse: (!isTimeout && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0
   });
 
   if (famMode) famAfterResponse(result);

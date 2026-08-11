@@ -732,13 +732,14 @@ function recordResponse(response) {
     result: result,
     responseMs: responseMs,
     reactionTime: reactionTime,
-    anticipatoryResponse: (pressed && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0,
     // --- Go/No-Go-specific fields (Section 2.7) ---
     stimulusColor: trial.color,
     stimulusShape: trial.shape,
     isGoTargetColor: level.goTargets.some(t => t.color === trial.color) ? 1 : 0,
     isGoTargetShape: level.goTargets.some(t => t.shape === trial.shape) ? 1 : 0,
-    sdtOutcome: sdtOutcome
+    sdtOutcome: sdtOutcome,
+    // Common field (Section 0.10), kept last so the game-specific columns stay contiguous
+    anticipatoryResponse: (pressed && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0
   });
 
   if (famMode) famAfterResponse(result);
