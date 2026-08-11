@@ -148,6 +148,7 @@ const STRINGS = {
   btnSaveCsv: 'Save Results (CSV)',
   btnSaveTrajectory: 'Save Mouse Data (CSV)',
   btnReturnMenu: 'Main Menu',
+  btnFamBackToMenu: 'Back to Game Menu',
   confirmLeaveUnsaved: 'The results have not been saved yet. Leave anyway?',
   saveReminder: 'Please save both files before closing this window.',
 
@@ -395,6 +396,13 @@ function buildUI() {
     window.location.href = '../../main.html';
   });
 
+  // Familiarization returns to THIS game's phase chooser, not the launcher.
+  ui.btnFamBack = createButton(STRINGS.btnFamBackToMenu).class('game-btn');
+  ui.btnFamBack.mousePressed(() => {
+    if (trialLogs.length && !csvSaved && !confirm(STRINGS.confirmLeaveUnsaved)) return;
+    returnToPhaseMenu();
+  });
+
   layoutUI();
 }
 
@@ -419,12 +427,13 @@ function layoutUI() {
   ui.btnSave.size(220, 46);       ui.btnSave.position(cx - 350, cy + 90);
   ui.btnSaveTraj.size(220, 46);   ui.btnSaveTraj.position(cx - 110, cy + 90);
   ui.btnReturn.size(220, 46);     ui.btnReturn.position(cx + 130, cy + 90);
+  ui.btnFamBack.size(220, 46);    ui.btnFamBack.position(cx + 130, cy + 90);
 }
 
 function showOnly(group) {
   const all = ['btnFam', 'btnAssess', 'lblPart', 'inPart', 'lblSess', 'inSess',
                'lblMusic', 'inMusic', 'btnStartExp', 'btnStartLevel',
-               'btnContinue', 'btnSave', 'btnSaveTraj', 'btnReturn', 'btnFamRepeat', 'btnFamContinue'];
+               'btnContinue', 'btnSave', 'btnSaveTraj', 'btnReturn', 'btnFamRepeat', 'btnFamContinue', 'btnFamBack'];
   for (const k of all) ui[k].hide();
 
   const groups = {
@@ -433,6 +442,7 @@ function showOnly(group) {
     instructions: ['btnStartLevel'],
     summary: ['btnContinue'],
     end: ['btnSave', 'btnSaveTraj', 'btnReturn'],
+    endFam: ['btnSave', 'btnSaveTraj', 'btnFamBack'],
     famOffer: ['btnFamRepeat', 'btnFamContinue'],
     none: []
   };
@@ -1212,8 +1222,31 @@ function famDone() {
     try { localStorage.setItem(famDoneKey(metaData.participantId), '1'); } catch (e) {}
   }
   state = STATES.END;
-  showOnly('end');
+  showOnly('endFam');
 }
+/* Back to this game's phase chooser (Familiarization / Assessment) after the
+   practice run. Nothing reloads the page here, so every flag the practice run
+   set has to be cleared by hand — famMode above all, or a subsequent
+   Assessment would keep using practice windows and keep routing responses
+   through famAfterResponse() instead of advanceTrial(). */
+function returnToPhaseMenu() {
+  famMode = false;
+  famOfferRepeat = false;
+  famPlan = [];
+  famStepIdx = 0;
+  famDemoIdx = 0;
+  famAttempt = 1;
+  famPracticeCorrect = 0;
+  famPracticeTotal = 0;
+  famFeedback = 0;
+  trialLogs = [];
+  csvSaved = false;
+  currentPhase = null;
+  pendingPhase = 'assessment';
+  state = STATES.MENU;
+  showOnly('menu');
+}
+
 
 /* ---------- Familiarization screens ---------- */
 function drawFamMsgScreen() {
