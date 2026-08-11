@@ -140,7 +140,7 @@ const STRINGS = {
     'Memorize them. After a short pause the empty grid returns:\n' +
     'click every cell that was highlighted, then press Done.\n' +
     'Clicks cannot be undone, so choose carefully.',
-  increasingDifficultyNote: 'Later levels highlight more cells to remember.',
+  moreCellsNote: 'This level has more cells to remember.',
   btnStartLevel: 'Start Level',
   pressSpaceToStart: '(or press SPACE)',
 
@@ -494,9 +494,10 @@ function drawInstructionsScreen() {
 
   fill(CONFIG.COLORS.HUD);
 
-  if (level.id < LEVELS.length) {
+  // Shown from L2 on: each level steps the target count up from the one before.
+  if (level.id > 1) {
     textSize(16);
-    text(STRINGS.increasingDifficultyNote, width / 2, height / 2 + 50);
+    text(STRINGS.moreCellsNote, width / 2, height / 2 + 50);
   }
 
   textSize(15);

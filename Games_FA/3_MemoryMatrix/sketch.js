@@ -137,7 +137,7 @@ const STRINGS = {
     'آن‌ها را به خاطر بسپارید. پس از یک مکث کوتاه، شبکهٔ خالی برمی‌گردد:\n' +
     'روی همهٔ خانه‌هایی که روشن بودند کلیک کنید و سپس دکمهٔ «پایان» را بزنید.\n' +
     'کلیک‌ها قابل لغو نیستند، پس با دقت انتخاب کنید.',
-  increasingDifficultyNote: 'در مراحل بعدی، تعداد خانه‌های بیشتری باید به خاطر سپرده شود.',
+  moreCellsNote: 'در این مرحله باید تعداد خانه‌های بیشتری به خاطر سپرده شود.',
   btnStartLevel: 'شروع مرحله',
   pressSpaceToStart: '(یا کلید فاصله را فشار دهید)',
 
@@ -494,9 +494,10 @@ function drawInstructionsScreen() {
 
   fill(CONFIG.COLORS.HUD);
 
-  if (level.id < LEVELS.length) {
+  // Shown from L2 on: each level steps the target count up from the one before.
+  if (level.id > 1) {
     textSize(16);
-    text(STRINGS.increasingDifficultyNote, width / 2, height / 2 + 50);
+    text(STRINGS.moreCellsNote, width / 2, height / 2 + 50);
   }
 
   textSize(15);
