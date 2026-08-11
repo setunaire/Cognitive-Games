@@ -1336,8 +1336,21 @@ function drawFamTrialUnderlay() {
 function drawFamDemoStimulus(item) {
   const n = LEVELS[0].gridSize;                   // demo mirrors the real grid
   computeGridGeometry(n);
-  // Raise the demo grid so it stays clear of the caption card at the bottom
-  gridOriginY = Math.max(70, Math.round((height - 200) / 2 - (cellSizePx * n) / 2));
+  // The demo must fit the grid AND the Done button above the caption card,
+  // whose top edge sits at height - 175. Below roughly 780 px of viewport the
+  // assessment cell size stops leaving room, so shrink the demo grid into the
+  // band instead of only shifting it up. Safe to override the geometry globals
+  // here: demo frames are not click-interactive (mousePressed returns unless
+  // state === RECALL) and every practice trial recomputes the real geometry.
+  const bandTop = 90;                                    // clear of the "DEMO i / n" tag
+  const bandBottom = height - 175 - 20;                  // caption card top, less breathing room
+  const avail = bandBottom - (CONFIG.DONE_BTN_MARGIN + CONFIG.DONE_BTN_H) - bandTop;
+  if (cellSizePx * n > avail) {
+    cellSizePx = Math.max(28, Math.floor(avail / n));
+    gridOriginX = Math.round(width / 2 - (cellSizePx * n) / 2);
+  }
+  // Same origin on every frame, so the grid never jumps between demo steps.
+  gridOriginY = bandTop + Math.max(0, Math.round((avail - cellSizePx * n) / 2));
   const targets = new Set(FAM_DEMO_TARGETS);
   if (item.frame === 'retention') return;         // blank frame
   for (let row = 0; row < n; row++) {
