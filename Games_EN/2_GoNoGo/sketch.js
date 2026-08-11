@@ -848,10 +848,12 @@ function exportCSV() {
 /* ============================================================================
    FAMILIARIZATION ENGINE (CogGames_Documentation.docx Section 8)
    Flow: ALL rule demos first (self-paced, captioned), then ONE seamless
-   practice run sampling every level in order (real generators, relaxed
-   windows, immediate feedback; errors/timeouts also show the correct
-   answer). 70% pass with an OFFERED repeat (Section 8.7). Only practice
-   trials are logged (attemptNumber / feedbackShown, Section 8.10).
+   practice run sampling every level in order (real generators, one flat
+   practice window, immediate feedback; errors/timeouts also show the correct
+   answer). The repeat is offered to everyone (Section 8.7). Only practice
+   trials are logged; every attempt replays the whole set, so attempt blocks
+   are equal-length and their boundaries follow from trialIndexGlobal and
+   famAttempts (Section 8.10).
    ========================================================================== */
 
 function famDoneKey(pid) { return `cogGamesFamDone_${CONFIG.GAME_NAME}_${pid}`; }
@@ -908,8 +910,6 @@ function famAfterResponse(result) {
   // A missed Go target is presented as "missed / too slow" (matching the
   // Assessment summary), but still counts as an error toward accuracy.
   famFeedback = (result === -1 && row.sdtOutcome === 'miss') ? 0 : result;
-  row.attemptNumber = famAttempt;
-  row.feedbackShown = famFeedback === 1 ? 'correct' : (famFeedback === -1 ? 'incorrect' : 'timeout');
   famPracticeTotal++;
   if (result === 1) famPracticeCorrect++;
   famFbAt = nowMs();
