@@ -197,7 +197,7 @@ const SHAPE_SET = ['circle', 'square', 'triangle', 'diamond', 'pentagon',
    ========================================================================== */
 const LEVELS = [
   {
-    id: 1, searchType: 'feature', setSize: 21, paddingPx: 50,
+    id: 1, setSize: 21, paddingPx: 50,
     // [20,0] = color singleton (all distractors share the target's shape),
     // [0,20] = shape singleton (all distractors share the target's color).
     distractorPairs: [[20, 0], [0, 20]],
@@ -205,13 +205,13 @@ const LEVELS = [
     responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[0]
   },
   {
-    id: 2, searchType: 'conjunction', setSize: 21, paddingPx: 25,
+    id: 2, setSize: 21, paddingPx: 25,
     distractorPairs: [[10, 10], [11, 9], [12, 8], [13, 7]],
     placement: 'rejection',
     responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[1]
   },
   {
-    id: 3, searchType: 'conjunction', setSize: 41, paddingPx: 5,
+    id: 3, setSize: 41, paddingPx: 5,
     distractorPairs: [[20, 20], [21, 19], [22, 18], [23, 17], [24, 16], [25, 15]],
     placement: 'gridJitter',           // rejection sampling too slow at 5 px (Section 4.6)
     responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[2]
@@ -873,7 +873,13 @@ function finishTrial(clickPos) {
     reactionTime: reactionTime,
     anticipatoryResponse: (!isTimeout && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0,
     // --- Star Search-specific fields (Section 4.8) ---
-    searchType: level.searchType,
+    // Per-trial, not per-level: L1 alternates colour and shape singletons
+    // 20/20, and those are separate pop-out conditions (Section 4.8).
+    // d1 = target's shape in another colour; d2 = target's colour in another
+    // shape — so a zero count names the dimension the target is unique on.
+    searchType: trial.d2Count === 0 ? 'feature_color'
+              : trial.d1Count === 0 ? 'feature_shape'
+              : 'conjunction',
     setSize: level.setSize,
     distractor1Item: trial.d1Count > 0 ? `${trial.d1Color}_${trial.targetShape}` : '',
     distractor2Item: trial.d2Count > 0 ? `${trial.targetColor}_${trial.d2Shape}` : '',
