@@ -140,7 +140,6 @@ const STRINGS = {
     'Memorize them. After a short pause the empty grid returns:\n' +
     'click every cell that was highlighted, then press Done.\n' +
     'Clicks cannot be undone, so choose carefully.',
-  gridInfo: 'Grid: {g} × {g}',
   increasingDifficultyNote: 'Later levels highlight more cells to remember.',
   btnStartLevel: 'Start Level',
   pressSpaceToStart: '(or press SPACE)',
@@ -494,12 +493,10 @@ function drawInstructionsScreen() {
   text(STRINGS.instructionsCommon, width / 2, height / 2 - 80);
 
   fill(CONFIG.COLORS.HUD);
-  textSize(20);
-  text(fmtTemplate(STRINGS.gridInfo, { g: fmtNum(level.gridSize) }), width / 2, height / 2 + 40);
 
   if (level.id < LEVELS.length) {
     textSize(16);
-    text(STRINGS.increasingDifficultyNote, width / 2, height / 2 + 90);
+    text(STRINGS.increasingDifficultyNote, width / 2, height / 2 + 50);
   }
 
   textSize(15);
