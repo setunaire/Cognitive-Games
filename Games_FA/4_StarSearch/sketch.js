@@ -86,7 +86,7 @@ const CONFIG = {
 
   // --- Familiarization (CogGames_Documentation.docx Section 8) ---
   FAMILIARIZATION: {
-    DEMOS: [1, 1, 0],          // demo steps per level
+    DEMOS: [2, 1, 0],          // demo steps per level (L1: color pop-out + shape pop-out)
     // Practice trials are FIXED, identical for every participant — see FAM_PRACTICE_SETS
     PRACTICE_WINDOW_MS: 5000,        // flat practice window, all levels — hardest practiced level is L2 (2400 ms floor)
     FEEDBACK_MS: 600,                // feedback display time (Section 8.6)
@@ -161,7 +161,8 @@ const STRINGS = {
   famBtnContinue: 'ادامه',
   famAnswerHint: 'موردِ متفاوت با دایره مشخص شده است.',
   famDemos: [
-    'دقیقاً یک مورد با بقیه فرق دارد\n(اینجا دورش خط کشیده شده). آن را پیدا کنید و سریع کلیک کنید.',
+    'دقیقاً یک مورد با بقیه فرق دارد\n(اینجا دورش خط کشیده شده). اینجا فقط «رنگ» آن یکتاست — سریع کلیک کنید.',
+    'موردِ متفاوت می‌تواند در «شکل» فرق داشته باشد: هم‌رنگ\nهمهٔ موردهای دیگر، اما با شکلی متفاوت (اینجا مشخص شده).',
     'گاهی موردِ متفاوت هم‌رنگ بعضی و هم‌شکل بعضی دیگر است —\nفقط «ترکیبِ» آن یکتاست (اینجا مشخص شده). همان قانون: روی آن کلیک کنید.'
   ],
 };
@@ -1326,10 +1327,17 @@ function buildFamPlan(withDemos) {
   const F = CONFIG.FAMILIARIZATION;
   const plan = [];
   if (withDemos) {
-    // Both search kinds are demonstrated: feature (pop-out) and conjunction
+    // Every search kind is demonstrated: both pop-out types (unique color, then
+    // unique shape — the assessment splits L1 20/20 between them) and then
+    // conjunction. DEMOS[l] caps how many cards level l contributes.
     const items = [];
-    if (F.DEMOS[0] > 0) items.push({ demoLevel: 0, ring: true, caption: STRINGS.famDemos[0] });
-    if (F.DEMOS[1] > 0) items.push({ demoLevel: 1, ring: true, caption: STRINGS.famDemos[1] });
+    const shown = [0, 0, 0];
+    for (let i = 0; i < FAM_DEMO_LEVELS.length; i++) {
+      const dl = FAM_DEMO_LEVELS[i];
+      if (shown[dl] >= F.DEMOS[dl]) continue;
+      shown[dl]++;
+      items.push({ demoIdx: i, demoLevel: dl, ring: true, caption: STRINGS.famDemos[i] });
+    }
     if (items.length) plan.push({ type: 'demo', level: 0, items });
   }
   for (let l = 0; l < LEVELS.length; l++) {
@@ -1366,10 +1374,14 @@ const FAM_PRACTICE_SETS = [
   ]
 ];
 
-/* Fixed demo displays (identical for every participant). */
+/* Fixed demo displays (identical for every participant), in card order:
+   L1 unique-COLOR pop-out, L1 unique-SHAPE pop-out, then L2 conjunction.
+   FAM_DEMO_LEVELS[i] is the level whose geometry card i borrows. */
+const FAM_DEMO_LEVELS = [0, 0, 1];
 const FAM_DEMO_TRIALS = {
-  0: famT('deeppink', 'circle', 'dimgray', 'square', 20, 0),
-  1: famT('royalblue', 'diamond', 'saddlebrown', 'hexagon', 12, 8)
+  0: famT('deeppink', 'circle', 'dimgray', 'square', 20, 0),      // only its COLOR differs
+  1: famT('darkorange', 'triangle', 'dimgray', 'circle', 0, 20),  // only its SHAPE differs
+  2: famT('royalblue', 'diamond', 'saddlebrown', 'hexagon', 12, 8)
 };
 
 /* Deterministic RNG (mulberry32): familiarization displays must be
@@ -1429,7 +1441,7 @@ function drawFamDemoStimulus(item) {
     const lv = LEVELS[item.demoLevel];
     const prevBottom = CONFIG.FIELD_MARGIN_BOTTOM;
     CONFIG.FIELD_MARGIN_BOTTOM = 210;               // keep items clear of the caption card
-    famBuildItemsSeeded(FAM_DEMO_TRIALS[item.demoLevel], lv, 90 + item.demoLevel);
+    famBuildItemsSeeded(FAM_DEMO_TRIALS[item.demoIdx], lv, 90 + item.demoIdx);
     CONFIG.FIELD_MARGIN_BOTTOM = prevBottom;
     item._built = true;
   }
