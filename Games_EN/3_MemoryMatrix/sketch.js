@@ -7,10 +7,10 @@
 
    A grid appears with some cells highlighted (targets). After a blank
    retention interval the participant clicks all previously highlighted cells
-   on an empty grid, then presses Done. Perfect recall (all targets, no
-   false alarms) is required for result = 1.
+   on an empty grid, then presses Done. Clicking a cell again de-selects it.
+   Trials are scored with partial credit: (hits - false alarms) / targets.
 
-   Trial phases:  ITI (150 ms) → STIMULUS (2000 ms) → RETENTION (1000 ms)
+   Trial phases:  ITI (500-800 ms jittered) → STIMULUS (2000 ms) → RETENTION (1000 ms)
                   → RECALL (response window) → log
 
    Mouse handling:
@@ -45,10 +45,18 @@ const CONFIG = {
   INPUT_DEVICE: 'mouse',                // reported in session metadata (Section 0.10)
 
   // --- Trial structure (Sections 0.3 / 3.2) ---
-  TRIALS_PER_LEVEL: 20,                // no within-level stages; enough for the graded span score (Section 7.4), which needs far fewer trials than a binary accuracy estimate
+  PASS_SCORE: 0.5,                     // partial-credit score at or above which a trial counts as
+                                       // "correct" in the on-screen tallies and practice feedback.
+                                       // Analysis should use the graded `score` column, not this.
+  TRIALS_PER_LEVEL: 14,                // no within-level stages. The graded partial-credit score
+                                       // (Section 7.4) carries far more information per trial than a
+                                       // binary one, so 14 trials hold split-half reliability well
+                                       // above 0.85 while cutting ~2.8 min off the longest game.
 
   // --- Timing (Sections 0.5 / 0.6 / 3.5) ---
-  ITI_MS: 150,                         // blank inter-trial interval
+  ITI_MIN_MS: 500,                     // jittered blank inter-trial interval — a uniform draw
+  ITI_MAX_MS: 800,                     // per trial. Jitter blocks rhythmic anticipation; the
+                                       // length allows post-response/post-error recovery.
   STIMULUS_MS: 2000,                   // grid + highlighted targets
   RETENTION_MS: 1000,                  // blank retention interval
   RESPONSE_WINDOW_MS: [9000, 9000, 9000], // flat recall window — memory load is the only difficulty axis. 9 s (not 7) so L3's 9 clicks (8 cells + Done) under the pointer-lock virtual cursor are not motor-truncated: at 7 s a correct recall could still time out, the artifact Section 7.4's lenient re-scoring exists to catch. The window is a cap, not a duration, so easier levels cost no extra time.
@@ -139,7 +147,7 @@ const STRINGS = {
     'A grid will flash with some highlighted cells.\n' +
     'Memorize them. After a short pause the empty grid returns:\n' +
     'click every cell that was highlighted, then press Done.\n' +
-    'Clicks cannot be undone, so choose carefully.',
+    'Click a cell again to un-select it if you change your mind.',
   moreCellsNote: 'This level has more cells to remember.',
   btnStartLevel: 'Start Level',
   pressSpaceToStart: '(or press SPACE)',
@@ -185,7 +193,7 @@ const STRINGS = {
   famDemos: [
     'STEP 1 — Memorize: some cells light up briefly.\nRemember exactly which ones.',
     'STEP 2 — The grid disappears for a moment.\nKeep the pattern in mind.',
-    'STEP 3 — Recall: click every cell that was lit\n(outlined here as the answer), then press Done.'
+    'STEP 3 — Recall: click every cell that was lit\n(outlined here as the answer), then press Done.\nClick a cell again to un-select it.'
   ],
 
 };
@@ -243,6 +251,7 @@ let totalStats = { correct: 0, incorrect: 0, timeout: 0 };
 
 // Per-trial timing (session-relative ms)
 let itiOnsetMs = 0;
+let itiDurationMs = 0;                 // this trial's jittered ITI (drawn in beginIti)
 let trialStartSessionMs = 0;         // = stimulus phase onset (trial timer zero)
 let recallOnsetMs = 0;
 let trialEnded = false;
@@ -506,7 +515,7 @@ function drawInstructionsScreen() {
 
 function drawItiScreen() {
   drawHUD(false);
-  if (nowMs() - itiOnsetMs >= CONFIG.ITI_MS) beginStimulusPhase();
+  if (nowMs() - itiOnsetMs >= itiDurationMs) beginStimulusPhase();
 }
 
 function drawStimulusScreen() {
@@ -758,6 +767,7 @@ function startLevelFromInstructions() {
 
 function beginIti() {
   itiOnsetMs = nowMs();
+  itiDurationMs = random(CONFIG.ITI_MIN_MS, CONFIG.ITI_MAX_MS);
   trialEnded = false;
   selectedCells = [];
   clickTimes = [];
@@ -808,10 +818,22 @@ function finishTrial(response) {
   }
   const nMisses = trial.nTargets - nHits;
 
-  // result: perfect recall required (Section 3.4); timeout => 0
+  // Partial-credit score is the primary DV (Section 3.4): hits penalised by false
+  // alarms, normalised by the target count, floored at 0. All-or-nothing scoring
+  // discarded most of the signal — in piloting, trials marked "wrong" were
+  // overwhelmingly 6/8 or 7/8 recalls, and rescoring L1 this way lifted its
+  // split-half reliability from -0.19 to 0.95.
+  const score = trial.nTargets > 0
+    ? Math.max(0, +((nHits - nFalseAlarms) / trial.nTargets).toFixed(3))
+    : 0;
+
+  // result stays trichotomous for the on-screen tallies and practice feedback, but
+  // it is now a lenient pass mark on that graded score rather than a perfection
+  // test. nHits / nMisses / nFalseAlarms are all logged, so any other scoring rule
+  // can be recomputed from the CSV afterwards.
   let result;
   if (isTimeout) result = 0;
-  else result = (nHits === trial.nTargets && nFalseAlarms === 0) ? 1 : -1;
+  else result = (score >= CONFIG.PASS_SCORE) ? 1 : -1;
 
   if (result === 1) { levelStats.correct++; totalStats.correct++; }
   else if (result === -1) { levelStats.incorrect++; totalStats.incorrect++; }
@@ -838,7 +860,7 @@ function finishTrial(response) {
     nHits: nHits,
     nMisses: nMisses,
     nFalseAlarms: nFalseAlarms,
-    score: trial.nTargets > 0 ? +(nHits / trial.nTargets).toFixed(3) : 0,
+    score: score,                      // (nHits - nFalseAlarms) / nTargets, floored at 0
     clickTimesMs: clickTimes.join(';'),
     outOfBoundsClickCount: outOfBoundsClicks,
     gridOriginX: gridOriginX,
@@ -925,11 +947,14 @@ function mousePressed() {
 
   if (col >= 0 && col < n && row >= 0 && row < n) {
     const key = `${row},${col}`;
-    // No correction rule: a cell can be selected once, never de-selected
-    if (!selectedCells.includes(key)) {
-      selectedCells.push(key);
-      clickTimes.push(Math.round(nowMs() - recallOnsetMs));
-    }
+    // Click toggles the cell, so a mis-click can be corrected. Without this a single
+    // motor slip is recorded as a memory failure (raised by a pilot participant).
+    const at = selectedCells.indexOf(key);
+    if (at === -1) selectedCells.push(key);
+    else selectedCells.splice(at, 1);
+    // Every click is timed, selection or correction, so clickTimesMs stays a
+    // faithful trace of the recall sequence.
+    clickTimes.push(Math.round(nowMs() - recallOnsetMs));
   } else {
     outOfBoundsClicks++;               // click outside the grid entirely
   }
@@ -960,7 +985,7 @@ function exportCSV() {
     ['windowHeight', windowHeight],
     ['devicePixelRatio', window.devicePixelRatio],
     ['responseWindowsMs', CONFIG.RESPONSE_WINDOW_MS.join('/')],
-    ['itiMs', CONFIG.ITI_MS],
+    ['itiJitterMs', `${CONFIG.ITI_MIN_MS}-${CONFIG.ITI_MAX_MS}`],
     ['stimulusMs', CONFIG.STIMULUS_MS],
     ['retentionMs', CONFIG.RETENTION_MS],
     ['trialsPerLevel', CONFIG.TRIALS_PER_LEVEL],

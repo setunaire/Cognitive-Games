@@ -43,11 +43,15 @@ const CONFIG = {
   INPUT_DEVICE: 'keyboard_arrow',       // reported in session metadata (Section 0.10)
 
   // --- Trial structure (Sections 0.3 / 6.6) ---
-  TRIALS_PER_LEVEL: 40,
+  TRIALS_PER_LEVEL: 28,                // L2 split-half reliability was 0.97 at 40 trials — ample
+                                       // headroom. 28 keeps it above 0.85 and shortens a game whose
+                                       // median L3 trial is ~3.8 s of deliberate arithmetic.
   LEFT_LARGER_RATIO: 0.5,              // fraction of trials where LEFT is the larger side
 
   // --- Timing (Sections 0.5 / 0.6 / 6.6) ---
-  ITI_MS: 150,
+  ITI_MIN_MS: 650,                     // jittered blank inter-trial interval — a uniform draw
+  ITI_MAX_MS: 800,                     // per trial. Jitter blocks rhythmic anticipation; the
+                                       // length allows post-response/post-error recovery.
   RESPONSE_WINDOW_MS: [7000, 7000, 7000], // flat 6 s: time never differs between levels, so difficulty is attributable purely to operators, terms, and the diffRatio band
   ANTICIPATORY_THRESHOLD_MS: 150,
 
@@ -193,7 +197,7 @@ const LEVELS = [
     operators: ['+', '-'],
     termsPerSide: [2],
     addendRange: [1, 50],              // operands for + and −
-    diffRatioBand: [0.40, 0.70],       // raised from [0.30,0.60] to keep clear of L2's now-eased band
+    diffRatioBand: [0.45, 0.75],       // eased slightly; L1 is the easy baseline
     responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[0]
   },
   {
@@ -203,7 +207,9 @@ const LEVELS = [
     addendRange: [1, 50],
     multBigRange: [2, 20],             // one × factor — eased from [1,50] (too hard overall)
     multSmallRange: [2, 10],           // the other × factor — eased from [2,9]
-    diffRatioBand: [0.25, 0.55],
+    diffRatioBand: [0.35, 0.60],       // eased: floor raised 0.25 -> 0.35 removes the hardest L2
+                                       // trials. L2/L3 previously overlapped across nearly their
+                                       // whole range, which is why they differed by only ~8 points.
     requiredOperators: ['*'],
     responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[1]
   },
@@ -215,7 +221,9 @@ const LEVELS = [
     multBigRange: [2, 20],             // eased from [1,50] (too hard overall)
     multSmallRange: [2, 10],           // eased from [2,9]
     divisorRange: [2, 10],             // ÷ generation per Section 6.3
-    diffRatioBand: [0.2, 0.5],       // eased from [0.10,0.15] (too hard overall)
+    diffRatioBand: [0.25, 0.45],       // floor raised 0.20 -> 0.25 drops the hardest near-tie trials;
+                                       // mean difficulty is unchanged from the pilot (centre 0.35) but
+                                       // the band is now evenly stepped below L2 instead of overlapping.
     requiredOperators: ['*', '/'],
     responseWindowMs: CONFIG.RESPONSE_WINDOW_MS[2]
   }
@@ -258,6 +266,7 @@ let totalStats = { correct: 0, incorrect: 0, timeout: 0 };
 
 // Per-trial timing / response
 let itiOnsetMs = 0;
+let itiDurationMs = 0;                 // this trial's jittered ITI (drawn in beginIti)
 let stimulusOnsetMs = 0;
 let trialStartSessionMs = 0;
 let responded = false;
@@ -506,7 +515,7 @@ function drawInstructionsScreen() {
 
 function drawItiScreen() {
   drawHUD(false);
-  if (nowMs() - itiOnsetMs >= CONFIG.ITI_MS) beginStimulus();
+  if (nowMs() - itiOnsetMs >= itiDurationMs) beginStimulus();
 }
 
 function drawStimulusScreen() {
@@ -875,6 +884,7 @@ function startLevelFromInstructions() {
 
 function beginIti() {
   itiOnsetMs = nowMs();
+  itiDurationMs = random(CONFIG.ITI_MIN_MS, CONFIG.ITI_MAX_MS);
   responded = false;
   state = STATES.ITI;
 }
@@ -1025,7 +1035,7 @@ function exportCSV() {
     ['devicePixelRatio', window.devicePixelRatio],
     ['responseWindowsMs', CONFIG.RESPONSE_WINDOW_MS.join('/')],
     ['diffRatioBands', LEVELS.map(l => l.diffRatioBand.join('-')).join('/')],
-    ['itiMs', CONFIG.ITI_MS],
+    ['itiJitterMs', `${CONFIG.ITI_MIN_MS}-${CONFIG.ITI_MAX_MS}`],
     ['trialsPerLevel', CONFIG.TRIALS_PER_LEVEL]
   ];
 

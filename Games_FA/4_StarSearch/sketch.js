@@ -48,11 +48,25 @@ const CONFIG = {
   // --- Timing (Sections 0.5 / 0.6 / 4.7) ---
   FIXATION_MIN_MS: 500,                // jittered fixation replaces the ITI
   FIXATION_MAX_MS: 800,
-  RESPONSE_WINDOW_MS: [4000, 3000, 2000], // L1 / L2 / L3 — L2/L3 tightened after piloting (~92%/~72% with 4000/2500)
+  RESPONSE_WINDOW_MS: [4000, 4000, 5000], // L2/L3 ran 3000/2000 ms in the pilot and produced 19%/61%
+                                       // timeouts; L3 correct-trial RT came out FASTER than L2
+                                       // (survivor bias from the deadline). L3 has double L2's item
+                                       // count (41 vs 21) and conjunction search is serial, so it gets
+                                       // extra time on top of L2's window rather than the same cap.
+                                       // Difficulty is setSize + padding, not the clock.
   ANTICIPATORY_THRESHOLD_MS: 150,      // RT below this => anticipatoryResponse = 1
 
   // --- Mouse trajectory (Section 0.9) ---
   TRAJECTORY_SAMPLE_MS: 100,
+
+  // --- Virtual cursor (Section 4.5) ---
+  USE_POINTER_LOCK: true,              // 1:1 virtual cursor, recentred at every stimulus onset so the
+                                       // cursor-to-target distance is drawn from the same distribution
+                                       // on every trial. Without it the cursor starts wherever the last
+                                       // click left it, folding motor travel time into RT as pure noise.
+                                       // A page cannot move the OS pointer, so this needs Pointer Lock;
+                                       // if the lock is refused the game degrades to the real cursor.
+  CURSOR_SIZE: 16,                     // drawn virtual cursor size (px)
 
   // --- Item geometry ---
   ITEM_SIZE: 56,                       // bounding size of each item (px) — raised after piloting (34 → 44 → 56)
@@ -79,6 +93,7 @@ const CONFIG = {
     ACCENT: '#3B5BDB',
     HUD: '#37474F',
     FIXATION: '#495057',
+    CURSOR: '#212529',                 // virtual cursor (drawn only while the lock is held)
     CORRECT: '#2F9E44',
     INCORRECT: '#E03131',
     TIMEOUT: '#F08C00'
@@ -249,6 +264,8 @@ let trialStartSessionMs = 0;         // = fixation onset (trial start)
 let stimulusOnsetMs = 0;
 let fixationDurationMs = 0;
 let trialEnded = false;
+let vCursorX = 0, vCursorY = 0;      // virtual cursor position (Section 12)
+let lockActiveAtStimulus = 0;        // was the lock actually held for this trial?
 let emptyClicks = 0;                 // background clicks this trial (they do NOT end the trial)
 
 // Items placed for the current trial: {x, y, color, shape, isTarget}
@@ -306,7 +323,16 @@ function windowResized() {
 
 function draw() {
   background(CONFIG.COLORS.BG);
+  updateVirtualCursor();
   sampleTrajectory();
+
+  /* Pointer Lock must never survive into a screen with DOM buttons: while it is
+     held the OS pointer is hidden and the buttons cannot be clicked. Releasing
+     it here — centrally, off the current state — covers every exit path out of
+     the trial loop, including the ones familiarization takes. */
+  if (pointerLockActive() && state !== STATES.FIXATION && state !== STATES.STIMULUS) {
+    releaseCursorLock();
+  }
 
   switch (state) {
     case STATES.MENU:          drawMenuScreen(); break;
@@ -320,6 +346,10 @@ function draw() {
     case STATES.FAM_MSG:       drawFamMsgScreen(); break;
     case STATES.FAM_FEEDBACK:  drawFamFeedbackScreen(); break;
   }
+
+  // Only while locked: unlocked, the participant still has their real cursor and
+  // a second drawn crosshair would just be confusing.
+  if (state === STATES.STIMULUS && pointerLockActive()) drawVirtualCursor();
 }
 
 /* ============================================================================
@@ -810,6 +840,16 @@ function beginStimulus() {
   const level = LEVELS[levelIdx];
   if (famMode) famBuildItemsSeeded(trialPool[trialIdxLevel], level, 500 + famAttempt * 1000 + levelIdx * 100 + trialIdxLevel);
   else buildItems(trialPool[trialIdxLevel], level);
+  /* Recentre before the array appears so every trial starts from the middle of
+     the screen (Section 4.5). Requested opportunistically: browsers only grant
+     the lock close to a user gesture, so mousePressed re-requests it if this
+     misses. Until it is granted updateVirtualCursor tracks the real pointer and
+     the recentring below is simply overwritten — the task still works. */
+  if (CONFIG.USE_POINTER_LOCK && !pointerLockActive()) requestPointerLock();
+  vCursorX = width / 2;
+  vCursorY = height / 2;
+  lockActiveAtStimulus = pointerLockActive() ? 1 : 0;
+
   stimulusOnsetMs = nowMs();           // timer starts at 0 here (Section 4.5)
   state = STATES.STIMULUS;
 }
@@ -890,6 +930,7 @@ function finishTrial(clickPos) {
     clickDistance: isTimeout ? -1 : Math.round(dist(clickPos.x, clickPos.y, target.x, target.y)),
     clickedItemType: clickedItemType,
     emptyClickCount: emptyClicks,
+    pointerLockActive: lockActiveAtStimulus,
     // Common field (Section 0.10), kept last so the game-specific columns stay contiguous
     anticipatoryResponse: (!isTimeout && reactionTime < CONFIG.ANTICIPATORY_THRESHOLD_MS) ? 1 : 0
   });
@@ -946,8 +987,9 @@ function mousePressed() {
      noise (worst in the crowded L3 display), not search failures — ending
      the trial on them would mix pointing precision into the attention
      measure. They are tallied in emptyClickCount instead. */
-  if (itemAt(mouseX, mouseY) === null) { emptyClicks++; return; }
-  finishTrial({ x: mouseX, y: mouseY });
+  if (CONFIG.USE_POINTER_LOCK && !pointerLockActive()) requestPointerLock();
+  if (itemAt(cursorX(), cursorY()) === null) { emptyClicks++; return; }
+  finishTrial({ x: cursorX(), y: cursorY() });
 }
 
 /* Item under (x, y): nearest item center within the click radius. */
@@ -988,7 +1030,8 @@ function exportCSV() {
     ['responseWindowsMs', CONFIG.RESPONSE_WINDOW_MS.join('/')],
     ['fixationJitterMs', `${CONFIG.FIXATION_MIN_MS}-${CONFIG.FIXATION_MAX_MS}`],
     ['itemSizePx', CONFIG.ITEM_SIZE],
-    ['trialsPerLevel', CONFIG.TRIALS_PER_LEVEL]
+    ['trialsPerLevel', CONFIG.TRIALS_PER_LEVEL],
+    ['pointerLockUsed', CONFIG.USE_POINTER_LOCK ? 1 : 0]
   ];
 
   // Familiarization CSVs keep only identity/summary metadata; the game
@@ -1043,8 +1086,8 @@ function logTrajectoryPoint() {
   trajectoryLogs.push({
     trialIndexGlobal: trialIdxGlobal + 1,
     timestampMs: Math.round(nowMs()),
-    mouseX: Math.round(mouseX),
-    mouseY: Math.round(mouseY)
+    mouseX: Math.round(cursorX()),
+    mouseY: Math.round(cursorY())
   });
 }
 
@@ -1467,6 +1510,53 @@ function drawFamDemoStimulus(item) {
    ========================================================================== */
 function nowMs() {
   return performance.now() - sessionStartMonotonic;
+}
+
+/* ---------- Virtual cursor (Pointer Lock) ---------- */
+function pointerLockActive() {
+  return document.pointerLockElement !== null && document.pointerLockElement !== undefined;
+}
+
+/* Accumulate relative mouse movement into the virtual cursor while locked.
+   Some browsers deliver an undefined movementX/Y on the first locked event;
+   one NaN would otherwise poison the position (NaN + x = NaN) until unlock. */
+function updateVirtualCursor() {
+  if (pointerLockActive()) {
+    const dx = Number.isFinite(movedX) ? movedX : 0;
+    const dy = Number.isFinite(movedY) ? movedY : 0;
+    vCursorX = constrain(vCursorX + dx, 0, width);
+    vCursorY = constrain(vCursorY + dy, 0, height);
+    if (!Number.isFinite(vCursorX)) vCursorX = width / 2;   // recover if ever poisoned
+    if (!Number.isFinite(vCursorY)) vCursorY = height / 2;
+  } else {
+    vCursorX = mouseX;
+    vCursorY = mouseY;
+  }
+}
+
+/* Effective cursor position: virtual when locked, real otherwise. */
+function cursorX() { return vCursorX; }
+function cursorY() { return vCursorY; }
+
+/* Hand the pointer back to the participant (DOM buttons need it). */
+function releaseCursorLock() {
+  if (document.pointerLockElement) document.exitPointerLock();
+  cursor();
+}
+
+/* Draw the virtual cursor while the OS pointer is hidden by the lock. A white
+   underlay keeps it visible against dark items in the crowded L3 display. */
+function drawVirtualCursor() {
+  push();
+  stroke('#FFFFFF');
+  strokeWeight(4);
+  line(vCursorX - CONFIG.CURSOR_SIZE / 2, vCursorY, vCursorX + CONFIG.CURSOR_SIZE / 2, vCursorY);
+  line(vCursorX, vCursorY - CONFIG.CURSOR_SIZE / 2, vCursorX, vCursorY + CONFIG.CURSOR_SIZE / 2);
+  stroke(CONFIG.COLORS.CURSOR);
+  strokeWeight(2);
+  line(vCursorX - CONFIG.CURSOR_SIZE / 2, vCursorY, vCursorX + CONFIG.CURSOR_SIZE / 2, vCursorY);
+  line(vCursorX, vCursorY - CONFIG.CURSOR_SIZE / 2, vCursorX, vCursorY + CONFIG.CURSOR_SIZE / 2);
+  pop();
 }
 
 function shuffleArray(arr) {

@@ -158,7 +158,8 @@ needs — that keeps the HTML buttons in sync with the canvas `state`.
 ### The trial loop (Section 9)
 
 ```
-beginIti()      → state = ITI       (blank gap; drawItiScreen checks ITI_MS elapsed)
+beginIti()      → state = ITI       (blank gap of a fresh jittered length drawn into
+                                     itiDurationMs from CONFIG.ITI_MIN_MS/ITI_MAX_MS)
 beginStimulus() → state = STIMULUS  (draw stimulus; drawStimulusScreen checks the
                                      response window → recordResponse('timeout'))
 keyPressed()/mousePressed()         (a real response) ─┐
@@ -192,8 +193,11 @@ A parallel mini-machine layered on the same trial loop, gated by `famMode`:
   errors/timeouts it also shows the correct answer via the per-game `drawFamAnswerHint()`.
 - `effectiveWindowMs()` relaxes the window to `base × PRACTICE_WINDOW_SCALE` (1.5) while
   practicing.
-- `famFinishAttempt()` releases the cursor and offers **Practice again / Continue**
-  buttons to everyone; `famDone()` sets the run-once localStorage flag and ends.
+- `famFinishAttempt()` releases the cursor and offers **Practice again / Continue**.
+  Most games show both buttons to everyone. **Brain Shift gates it**: below
+  `PRACTICE_PASS_ACCURACY` it withholds Continue and shows Practice again alone
+  (`famMustRepeat`), until `MAX_PRACTICE_ATTEMPTS` is reached, after which the gate
+  opens so nobody is stuck. `famDone()` sets the run-once localStorage flag and ends.
 
 ### Logging (Section 11)
 
@@ -213,8 +217,8 @@ everywhere**. Only the *stimulus* pieces change:
 |---|---|---|
 | **Simon** (reference) | `{word, position, congruency}` | Arrow key matching the word's MEANING. `keyMap` changes per level. |
 | **Go/No-Go** | `{color, shape, trialType}` | SPACE for Go targets, withhold otherwise. `recordResponse` also computes `sdtOutcome` (hit/miss/falseAlarm/correctRejection). Drawer: `drawStimulusShape`. |
-| **Memory Matrix** | `{stage, gridSize, nTargets, targetSet}` | Cells flash → blank retention → **click** recalled cells + Done. Uses a **pointer-lock virtual cursor** (`requestPointerLock`, `vCursorX/Y`); `mousePressed` handles clicks; `drawGrid` renders. |
-| **Star Search** | `{targetColor, targetShape, d1Color, d2Shape, d1Count, d2Count}` | Click the odd-one-out (feature vs conjunction). Item **positions** computed by `rejectionPositions` / `gridJitterPositions`; familiarization seeds the RNG (`famBuildItemsSeeded`) so displays are identical for all participants. |
+| **Memory Matrix** | `{stage, gridSize, nTargets, targetSet}` | Cells flash → blank retention → **click** recalled cells (clicking again de-selects) + Done. Scored with **partial credit** (`(nHits − nFalseAlarms) / nTargets`); `result` is a pass mark on that score at `CONFIG.PASS_SCORE`. Uses a **pointer-lock virtual cursor** (`requestPointerLock`, `vCursorX/Y`); `mousePressed` handles clicks; `drawGrid` renders. |
+| **Star Search** | `{targetColor, targetShape, d1Color, d2Shape, d1Count, d2Count}` | Click the odd-one-out (feature vs conjunction). Item **positions** computed by `rejectionPositions` / `gridJitterPositions`; familiarization seeds the RNG (`famBuildItemsSeeded`) so displays are identical for all participants. Also uses the **pointer-lock virtual cursor**, recentred at each stimulus onset so cursor-to-target distance does not vary trial to trial. |
 | **Brain Shift** | `{stimulusNumber, stimulusColor, stimulusPosition, taskDomain, expectedCategory, correctResponse, switchType}` | Four labeled boxes (`BOXES`); `←/→` = No/Yes; tracks task-switching. L1 pure blocks, L3 labels hidden. |
 | **Chalkboard** | `{leftExpr, rightExpr, leftValue, rightValue, correctResponse, diffRatio}` | `←/→` picks the larger side; `drawExpressionCards` renders the two sums; difficulty = `diffRatio`. |
 

@@ -36,13 +36,23 @@ const CONFIG = {
   INPUT_DEVICE: 'keyboard_arrow',       // reported in session metadata (Section 0.10)
 
   // --- Trial structure (Section 0.3 / 1.5) ---
-  TRIALS_PER_LEVEL: 40,
-  CONGRUENT_TRIALS: 20,                // exact congruent count per level pool
-  INCONGRUENT_TRIALS: 20,              // exact incongruent count per level pool
+  TRIALS_PER_LEVEL: 40,                // 60/40 split needs only 16 incongruent trials per level to
+                                       // stay reliable — split-half on the old 50/50 design was 0.95
+                                       // at just ~17-20 correct incongruent trials, well past the 0.70
+                                       // bar this needs to clear.
+  CONGRUENT_TRIALS: 24,                // exact congruent count per level pool (60%)
+  INCONGRUENT_TRIALS: 16,              // exact incongruent count per level pool (40%). The 60/40
+                                       // proportion-congruent bias strengthens the prepotent spatial
+                                       // mapping, enlarging the conflict cost on incongruent trials.
 
   // --- Timing (Sections 0.5 / 0.6 / 0.8) ---
-  ITI_MS: 150,                         // blank inter-trial interval
-  RESPONSE_WINDOW_MS: [2000, 1000, 750], // L1 / L2 / L3
+  ITI_MIN_MS: 500,                     // jittered blank inter-trial interval — a uniform draw
+  ITI_MAX_MS: 800,                     // per trial. Jitter blocks rhythmic anticipation; the
+                                       // length allows post-response/post-error recovery.
+  RESPONSE_WINDOW_MS: [1500, 1500, 1500], // flat — the deadline is never the difficulty knob. In the
+                                       // pilot L3 at 750 ms produced 25% timeouts and censored RT so
+                                       // hard the 4-choice level read FASTER than the 3-choice one.
+                                       // Difficulty comes from alternatives + congruency ratio.
   ANTICIPATORY_THRESHOLD_MS: 150,      // RT below this => anticipatoryResponse = 1
 
   // --- Stimulus geometry ---
@@ -228,6 +238,7 @@ let totalStats = { correct: 0, incorrect: 0, timeout: 0 };
 
 // Per-trial timing / response
 let itiOnsetMs = 0;                    // session-relative
+let itiDurationMs = 0;                 // this trial's jittered ITI (drawn in beginIti)
 let stimulusOnsetMs = 0;               // session-relative
 let trialStartSessionMs = 0;           // = stimulusOnsetMs for Simon (trial onset)
 let responded = false;
@@ -497,7 +508,7 @@ function drawItiScreen() {
   if (CONFIG.SHOW_POSITION_GHOST_FRAME) drawPositionSlots(null);
   drawHUD(false);
 
-  if (nowMs() - itiOnsetMs >= CONFIG.ITI_MS) beginStimulus();
+  if (nowMs() - itiOnsetMs >= itiDurationMs) beginStimulus();
 }
 
 function drawStimulusScreen() {
@@ -733,6 +744,7 @@ function startLevelFromInstructions() {
 
 function beginIti() {
   itiOnsetMs = nowMs();
+  itiDurationMs = random(CONFIG.ITI_MIN_MS, CONFIG.ITI_MAX_MS);
   responded = false;
   state = STATES.ITI;
 }
@@ -868,7 +880,7 @@ function exportCSV() {
     ['windowHeight', windowHeight],
     ['devicePixelRatio', window.devicePixelRatio],
     ['responseWindowsMs', CONFIG.RESPONSE_WINDOW_MS.join('/')],
-    ['itiMs', CONFIG.ITI_MS],
+    ['itiJitterMs', `${CONFIG.ITI_MIN_MS}-${CONFIG.ITI_MAX_MS}`],
     ['trialsPerLevel', CONFIG.TRIALS_PER_LEVEL]
   ];
 

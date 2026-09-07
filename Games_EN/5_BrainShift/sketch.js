@@ -50,8 +50,13 @@ const CONFIG = {
   MIXED_START_DOMAIN: 'number',          // starting domain for the mixed levels L2/L3
 
   // --- Timing (Sections 0.5 / 0.6 / 5.6) ---
-  ITI_MS: 200,                         // blank inter-trial interval (longer than other games)
-  RESPONSE_WINDOW_MS: [3000, 3000, 2000], // L1 / L2 / L3 — L3 sits AT its 2000 ms floor (switch RT ~1150 ms + 2σ): any tighter and the window censors switch trials more than repeats, shrinking the very switch cost this game measures. L1 == L2 so mixing cost (L2 − L1) is read at a constant window.
+  ITI_MIN_MS: 650,                     // jittered blank inter-trial interval — a uniform draw
+  ITI_MAX_MS: 800,                     // per trial. Jitter blocks rhythmic anticipation; the
+                                       // length allows post-response/post-error recovery.
+  RESPONSE_WINDOW_MS: [3000, 3000, 3000], // flat — L3 carries the most switch trials and those are
+                                       // the slowest (pilot switch cost 174-659 ms), so it needs at
+                                       // least as much time as L2, not a third less. A constant
+                                       // window also keeps mixing cost (L2 - L1) readable at one deadline.
   ANTICIPATORY_THRESHOLD_MS: 150,      // RT below this => anticipatoryResponse = 1
 
   // --- Switch rates per level (Section 5.4) ---
@@ -97,6 +102,9 @@ const CONFIG = {
     PRACTICE_WINDOW_MS: 4000,        // flat practice window, all levels — hardest practiced level is L2 (2000 ms floor)
     FEEDBACK_MS: 600,                // feedback display time (Section 8.6)
     FEEDBACK_ANSWER_MS: 2500,        // longer feedback when the correct answer is shown (errors/timeouts)
+    PRACTICE_PASS_ACCURACY: 0.75,    // practice accuracy required before the Assessment unlocks
+    MAX_PRACTICE_ATTEMPTS: 3,        // after this many attempts the gate opens regardless, so a
+                                     // participant can never be trapped in the practice loop
     RUN_ONCE_PER_PARTICIPANT: true   // warn if the same participant repeats it
   },
 
@@ -171,6 +179,7 @@ const STRINGS = {
   famDemoTag: 'DEMO {i} / {n}',
   famPracticeIntro: 'Practice',
   famOfferRepeat: 'Would you like to practice once more?',
+  famMustRepeat: 'Let\'s practice once more before the Assessment.',
   famAlreadyDone: 'This participant already completed Familiarization for this game. Repeat it anyway?',
   famEndTitle: 'Familiarization Complete',
   famReadyLine: 'You are ready for the Assessment.',
@@ -259,6 +268,7 @@ let totalStats = { correct: 0, incorrect: 0, timeout: 0 };
 
 // Per-trial timing / response
 let itiOnsetMs = 0;
+let itiDurationMs = 0;                 // this trial's jittered ITI (drawn in beginIti)
 let stimulusOnsetMs = 0;
 let trialStartSessionMs = 0;
 let responded = false;
@@ -282,6 +292,7 @@ let famPracticeTotal = 0;
 let famFeedback = 0;                 // last practice result (1 | -1 | 0)
 let famFbAt = 0;                     // feedback onset (session ms)
 let famOfferRepeat = false;          // offering the optional practice repeat (shown to everyone)
+let famMustRepeat = false;           // practice accuracy below the gate: repeat is the only way on
 let pendingPhase = 'assessment';     // where onSubmitMetadata routes afterwards
 
 
@@ -403,7 +414,8 @@ function buildUI() {
 function layoutUI() {
   const cx = windowWidth / 2, cy = windowHeight / 2;
 
-  ui.btnFamRepeat.size(200, 46);   ui.btnFamRepeat.position(cx - 210, cy + 40);
+  ui.btnFamRepeat.size(200, 46);
+  ui.btnFamRepeat.position(famMustRepeat ? cx - 100 : cx - 210, cy + 40);
   ui.btnFamContinue.size(200, 46); ui.btnFamContinue.position(cx + 10, cy + 40);
 
   ui.btnFam.size(220, 46);       ui.btnFam.position(cx - 110, cy - 46);
@@ -437,6 +449,7 @@ function showOnly(group) {
     end: ['btnSave', 'btnReturn'],
     endFam: ['btnSave', 'btnFamBack'],
     famOffer: ['btnFamRepeat', 'btnFamContinue'],
+    famMustRepeat: ['btnFamRepeat'],   // Continue withheld until the gate is met
     none: []
   };
   for (const k of (groups[group] || [])) ui[k].show();
@@ -503,7 +516,7 @@ function drawItiScreen() {
   drawBoxes(LEVELS[levelIdx].labelsVisible, 1, height / 2);
   drawResponseLabels();
   drawHUD(false);
-  if (nowMs() - itiOnsetMs >= CONFIG.ITI_MS) beginStimulus();
+  if (nowMs() - itiOnsetMs >= itiDurationMs) beginStimulus();
 }
 
 function drawStimulusScreen() {
@@ -806,6 +819,7 @@ function startLevelFromInstructions() {
 
 function beginIti() {
   itiOnsetMs = nowMs();
+  itiDurationMs = random(CONFIG.ITI_MIN_MS, CONFIG.ITI_MAX_MS);
   responded = false;
   state = STATES.ITI;
 }
@@ -938,7 +952,7 @@ function exportCSV() {
     ['responseWindowsMs', CONFIG.RESPONSE_WINDOW_MS.join('/')],
     ['switchRates', CONFIG.SWITCH_RATE.join('/')],
     ['labelsVisible', LEVELS.map(l => l.labelsVisible ? 1 : 0).join('/')],   // per level; constant while labels are shown at every level
-    ['itiMs', CONFIG.ITI_MS],
+    ['itiJitterMs', `${CONFIG.ITI_MIN_MS}-${CONFIG.ITI_MAX_MS}`],
     ['trialsPerLevel', CONFIG.TRIALS_PER_LEVEL]
   ];
 
@@ -991,6 +1005,7 @@ function startFamiliarization() {
   famPracticeCorrect = 0;
   famPracticeTotal = 0;
   famOfferRepeat = false;
+  famMustRepeat = false;
   famPlan = buildFamPlan(true);
   famStepIdx = -1;
   showOnly('none');
@@ -1044,15 +1059,25 @@ function famAfterFeedback() {
 }
 
 function famFinishAttempt() {
-  // EVERYONE gets the optional repeat offer (uniform experience; there is no
-  // pass criterion — practiceAccuracyFinal is logged for screening, ungated).
   // Release any pointer lock and restore the cursor so the offer buttons are
   // usable (Memory Matrix hides the cursor during recall).
   if (document.pointerLockElement) document.exitPointerLock();
   cursor();
+
+  /* Comprehension gate (Section 8). A participant who has not understood the
+     rule produces at-chance data that is indistinguishable from a genuine low
+     score and silently pollutes the group analysis — one pilot participant did
+     exactly that here, finishing at 37.5% with a NEGATIVE switch cost. Below
+     the pass mark the only way forward is another practice block; past
+     MAX_PRACTICE_ATTEMPTS the gate opens anyway so nobody is ever stuck, and
+     practiceAccuracyFinal / famAttempts record what happened either way. */
+  const acc = famPracticeTotal ? famPracticeCorrect / famPracticeTotal : 0;
+  famMustRepeat = acc < CONFIG.FAMILIARIZATION.PRACTICE_PASS_ACCURACY
+               && famAttempt < CONFIG.FAMILIARIZATION.MAX_PRACTICE_ATTEMPTS;
+
   famOfferRepeat = true;
   state = STATES.FAM_MSG;
-  showOnly('famOffer');
+  showOnly(famMustRepeat ? 'famMustRepeat' : 'famOffer');
 }
 
 function famAcceptRepeat() {
@@ -1112,7 +1137,9 @@ function drawFamMsgScreen() {
   fill(CONFIG.COLORS.ACCENT);
   textSize(26);
   textStyle(BOLD);
-  text(famOfferRepeat ? STRINGS.famOfferRepeat : STRINGS.famPracticeIntro, width / 2, height / 2 - 40);
+  text(famMustRepeat ? STRINGS.famMustRepeat
+     : famOfferRepeat ? STRINGS.famOfferRepeat
+     : STRINGS.famPracticeIntro, width / 2, height / 2 - 40);
   textStyle(NORMAL);
   fill(CONFIG.COLORS.HUD);
   textSize(16);

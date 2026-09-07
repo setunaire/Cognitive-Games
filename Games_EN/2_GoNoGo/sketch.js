@@ -34,12 +34,22 @@ const CONFIG = {
   INPUT_DEVICE: 'keyboard_space',       // reported in session metadata (Section 0.10)
 
   // --- Trial structure (Sections 0.3 / 2.3 / 2.6) ---
-  TRIALS_PER_LEVEL: 40,
-  GO_RATIO: 0.6,                       // 60% Go / 40% No-Go, fixed for all levels
+  TRIALS_PER_LEVEL: 40,                // at GO_RATIO 0.7 this gives 12 No-Go trials per level. The
+                                       // false-alarm rate's split-half reliability was 0.83-0.89 at 16
+                                       // No-Go trials (comfortably past the 0.70 bar), so 12 is a
+                                       // reasonable bet — not independently verified at this exact n.
+  GO_RATIO: 0.7,                       // 70% Go / 30% No-Go — raised from 0.6 to build a genuinely
+                                       // prepotent response. At 0.6 false alarms sat near zero at
+                                       // L1/L2, so there was no inhibition failure left to measure.
 
   // --- Timing (Sections 0.5 / 0.6 / 0.8) ---
-  ITI_MS: 150,                         // blank inter-trial interval
-  RESPONSE_WINDOW_MS: [1000, 800, 600], // L1 / L2 / L3
+  ITI_MIN_MS: 500,                     // jittered blank inter-trial interval — a uniform draw
+  ITI_MAX_MS: 800,                     // per trial. Jitter blocks rhythmic anticipation; the
+                                       // length allows post-response/post-error recovery.
+  RESPONSE_WINDOW_MS: [1000, 1000, 1000], // flat — pilot L3 at 600 ms produced 41.7% go-trial
+                                       // omissions, turning an inhibition measure into a speed test.
+                                       // Hit RT p95 never exceeded ~700 ms, so 1000 ms clears it and
+                                       // leaves target discrimination as the only difficulty axis.
   ANTICIPATORY_THRESHOLD_MS: 150,      // RT below this => anticipatoryResponse = 1
 
   // --- Stimulus geometry ---
@@ -229,6 +239,7 @@ let totalStats = { correct: 0, incorrect: 0, timeout: 0 };
 
 // Per-trial timing / response
 let itiOnsetMs = 0;
+let itiDurationMs = 0;                 // this trial's jittered ITI (drawn in beginIti)
 let stimulusOnsetMs = 0;
 let trialStartSessionMs = 0;
 let responded = false;
@@ -475,7 +486,7 @@ function drawInstructionsScreen() {
 
 function drawItiScreen() {
   drawHUD(false);
-  if (nowMs() - itiOnsetMs >= CONFIG.ITI_MS) beginStimulus();
+  if (nowMs() - itiOnsetMs >= itiDurationMs) beginStimulus();
 }
 
 function drawStimulusScreen() {
@@ -594,11 +605,11 @@ function drawHUD(showCountdown) {
    targets; No-Go trials cycle over every non-target combination.
    ========================================================================== */
 function generateTrialPool(level) {
-  const goCount = Math.round(CONFIG.TRIALS_PER_LEVEL * CONFIG.GO_RATIO);   // 24
-  const nogoCount = CONFIG.TRIALS_PER_LEVEL - goCount;                     // 16
+  const goCount = Math.round(CONFIG.TRIALS_PER_LEVEL * CONFIG.GO_RATIO);   // 28
+  const nogoCount = CONFIG.TRIALS_PER_LEVEL - goCount;                     // 12
   const pool = [];
 
-  // --- Go trials: even split across Go targets (24/1, 12/12, 8/8/8) ---
+  // --- Go trials: even split across Go targets (28/1, 14/14, 10/9/9) ---
   const targets = shuffleArray(level.goTargets);
   for (let i = 0; i < goCount; i++) {
     const t = targets[i % targets.length];
@@ -679,6 +690,7 @@ function startLevelFromInstructions() {
 
 function beginIti() {
   itiOnsetMs = nowMs();
+  itiDurationMs = random(CONFIG.ITI_MIN_MS, CONFIG.ITI_MAX_MS);
   responded = false;
   state = STATES.ITI;
 }
@@ -815,7 +827,7 @@ function exportCSV() {
     ['windowHeight', windowHeight],
     ['devicePixelRatio', window.devicePixelRatio],
     ['responseWindowsMs', CONFIG.RESPONSE_WINDOW_MS.join('/')],
-    ['itiMs', CONFIG.ITI_MS],
+    ['itiJitterMs', `${CONFIG.ITI_MIN_MS}-${CONFIG.ITI_MAX_MS}`],
     ['trialsPerLevel', CONFIG.TRIALS_PER_LEVEL],
     ['goRatio', CONFIG.GO_RATIO]
   ];
