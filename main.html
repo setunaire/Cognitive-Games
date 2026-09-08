@@ -218,15 +218,11 @@
     <p class="hint" id="sessionHint"></p>
     <div class="session-row">
       <label id="lblPart" for="inPart"></label>
-      <input id="inPart" type="text" autocomplete="off">
+      <select id="inPart"></select>
     </div>
     <div class="session-row">
       <label id="lblSess" for="inSess"></label>
-      <input id="inSess" type="text" autocomplete="off">
-    </div>
-    <div class="session-row">
-      <label id="lblMusic" for="inMusic"></label>
-      <select id="inMusic"></select>
+      <select id="inSess"></select>
     </div>
     <div class="session-status" id="sessionStatus"></div>
   </div>
@@ -235,16 +231,21 @@
 
   <footer id="footer"></footer>
 
+  <script src="experiment.js"></script>
   <script>
     /* =====================================================================
        CogGames launcher
        - The language switch decides which tree (Games_EN / Games_FA) the game
          cards link into, and localizes the launcher page itself.
-       - Session Information (participant / session / music condition) is
-         entered ONCE here and stored in localStorage under 'cogGamesSession'.
-         Each game reads it and skips its own metadata form. Cards stay locked
-         until all three fields are provided.
-       - Choices are remembered in localStorage across visits.
+       - Session Information (participant number + session number) is chosen
+         ONCE here from fixed lists and stored in sessionStorage (NOT
+         localStorage — see loadSession()) under 'cogGamesSession'. Each game
+         reads it and skips its own metadata form. Cards stay locked until
+         both are chosen.
+       - The music condition is NO LONGER chosen by hand: experiment.js derives
+         it from the session's fixed schedule and this participant's game order.
+       - Cards are shown in this participant's assigned play order, numbered
+         1..6, so the order is unambiguous without an experimenter present.
        ===================================================================== */
 
     const GAMES = [
@@ -268,35 +269,40 @@
         fa: { name: 'چالش تخته‌سیاه',         desc: 'محاسبه ذهنی، پردازش عددی و عملکرد اجرایی' } }
     ];
 
-    // Music conditions offered in the dropdown (value = logged label).
-    const MUSIC_CONDITIONS = ['silence', 'calm', 'energizing'];
-
     const PAGE_STRINGS = {
       en: {
         title: 'Cognitive Games',
-        subtitle: 'Evaluation of Unconscious Effect of Music on Cognitive Functions — choose a game to begin',
+        subtitle: 'Evaluation of Unconscious Effect of Music on Cognitive Functions — play the games in the numbered order',
         dir: 'ltr', tree: 'Games_EN', htmlLang: 'en',
         sessionTitle: 'Session Information',
-        sessionHint: 'Enter these once. Every game will use them — you will not be asked again.',
-        labelPart: 'Participant ID', labelSess: 'Session ID', labelMusic: 'Music Condition',
-        placeholderPart: 'e.g. P001', placeholderSess: 'e.g. P001_S1', selectPrompt: '— select —',
-        statusOk: '✓ Saved — you can start any game.',
-        statusWarn: 'Fill in all three fields to unlock the games.',
-        footer: 'Language and Session Information are stored on this computer and reused across games.'
+        sessionHint: 'Choose these once. Every game will use them — you will not be asked again.',
+        labelPart: 'Participant number', labelSess: 'Session number',
+        selectPrompt: '— select —',
+        statusOk: '✓ Saved — play the games in the numbered order, starting with 1.',
+        statusWarn: 'Choose both numbers to unlock the games.',
+        footer: 'Play the games in the order shown, from 1 to 6.'
       },
       fa: {
         title: 'بازی‌های شناختی',
-        subtitle: 'ارزیابی اثر ناآگاهانه موسیقی بر عملکردهای شناختی — برای شروع یک بازی را انتخاب کنید',
+        subtitle: 'ارزیابی اثر ناآگاهانه موسیقی بر عملکردهای شناختی — بازی‌ها را به ترتیب شماره انجام دهید',
         dir: 'rtl', tree: 'Games_FA', htmlLang: 'fa',
         sessionTitle: 'اطلاعات جلسه',
-        sessionHint: 'این موارد را یک بار وارد کنید. همهٔ بازی‌ها از آن استفاده می‌کنند و دوباره پرسیده نمی‌شود.',
-        labelPart: 'شناسه شرکت‌کننده', labelSess: 'شناسه جلسه', labelMusic: 'شرایط موسیقی',
-        placeholderPart: 'مثلاً P001', placeholderSess: 'مثلاً P001_S1', selectPrompt: '— انتخاب کنید —',
-        statusOk: '✓ ذخیره شد — می‌توانید هر بازی را شروع کنید.',
-        statusWarn: 'برای باز شدن بازی‌ها، هر سه فیلد را پر کنید.',
-        footer: 'زبان و اطلاعات جلسه روی این رایانه ذخیره و در همهٔ بازی‌ها استفاده می‌شود.'
+        sessionHint: 'این موارد را یک بار انتخاب کنید. همهٔ بازی‌ها از آن استفاده می‌کنند و دوباره پرسیده نمی‌شود.',
+        labelPart: 'شمارهٔ شرکت‌کننده', labelSess: 'شمارهٔ جلسه',
+        selectPrompt: '— انتخاب کنید —',
+        statusOk: '✓ ذخیره شد — بازی‌ها را به ترتیب شماره و از شمارهٔ ۱ شروع کنید.',
+        statusWarn: 'برای باز شدن بازی‌ها، هر دو شماره را انتخاب کنید.',
+        footer: 'بازی‌ها را به ترتیب نمایش‌داده‌شده، از ۱ تا ۶ انجام دهید.'
       }
     };
+
+    /* Persian digits for the FA interface. */
+    function faDigits(str) {
+      return String(str).replace(/[0-9]/g, d => '۰۱۲۳۴۵۶۷۸۹'[+d]);
+    }
+    function localizeNum(n, lang) {
+      return lang === 'fa' ? faDigits(n) : String(n);
+    }
 
     let currentLang = localStorage.getItem('cogGamesLang') || 'en';
 
@@ -306,24 +312,39 @@
       render(lang);
     }
 
+    // Deliberately sessionStorage, not localStorage: it must survive
+    // navigating between games in the SAME sitting, but must NOT survive
+    // closing the tab/browser — otherwise the launcher would silently
+    // reopen pre-filled with yesterday's participant/session number.
     function loadSession() {
-      try { return JSON.parse(localStorage.getItem('cogGamesSession')) || {}; }
+      try { return JSON.parse(sessionStorage.getItem('cogGamesSession')) || {}; }
       catch (e) { return {}; }
     }
 
     function saveSession() {
+      const prev = loadSession();
       const sess = {
         participantId: document.getElementById('inPart').value.trim(),
-        sessionId: document.getElementById('inSess').value.trim(),
-        musicCondition: document.getElementById('inMusic').value.trim()
+        sessionId: document.getElementById('inSess').value.trim()
       };
-      localStorage.setItem('cogGamesSession', JSON.stringify(sess));
-      refreshLock();
+      sessionStorage.setItem('cogGamesSession', JSON.stringify(sess));
+
+      // A genuinely different participant/session pair starts a fresh session:
+      // clear the stored music resume positions so its tracks begin at 0:00.
+      // (Coming back to the launcher mid-session keeps the same pair, so
+      // nothing is wiped between games.)
+      const changed = sess.participantId !== (prev.participantId || '') ||
+                      sess.sessionId !== (prev.sessionId || '');
+      if (changed && sess.participantId && sess.sessionId) {
+        CogGamesExperiment.resetSessionMusic(sess.participantId, sess.sessionId);
+      }
+
+      render(currentLang);   // re-number/re-order the cards for this participant
     }
 
     function sessionComplete() {
       const s = loadSession();
-      return !!(s.participantId && s.sessionId && s.musicCondition);
+      return !!(s.participantId && s.sessionId);
     }
 
     function refreshLock() {
@@ -352,44 +373,35 @@
       document.getElementById('sessionHint').textContent = S.sessionHint;
       document.getElementById('lblPart').textContent = S.labelPart;
       document.getElementById('lblSess').textContent = S.labelSess;
-      document.getElementById('lblMusic').textContent = S.labelMusic;
-      document.getElementById('inPart').setAttribute('placeholder', S.placeholderPart);
-      document.getElementById('inSess').setAttribute('placeholder', S.placeholderSess);
 
-      // Music dropdown (rebuilt so the prompt is localized; selection preserved)
-      const sel = document.getElementById('inMusic');
-      const prev = sel.value;
-      sel.innerHTML = '';
-      const opt0 = document.createElement('option');
-      opt0.value = ''; opt0.textContent = S.selectPrompt;
-      sel.appendChild(opt0);
-      for (const mc of MUSIC_CONDITIONS) {
-        const o = document.createElement('option');
-        o.value = mc; o.textContent = mc;
-        sel.appendChild(o);
-      }
-      // Restore stored/previous selection
       const stored = loadSession();
-      sel.value = prev || stored.musicCondition || '';
 
-      // Restore stored text fields
-      document.getElementById('inPart').value = stored.participantId || '';
-      document.getElementById('inSess').value = stored.sessionId || '';
+      // Participant / session number pickers (rebuilt so the prompt is
+      // localized and the digits follow the interface language).
+      fillNumberSelect('inPart', CogGamesExperiment.PARTICIPANT_IDS,
+                       stored.participantId || '', S.selectPrompt, lang);
+      fillNumberSelect('inSess', CogGamesExperiment.SESSION_IDS,
+                       stored.sessionId || '', S.selectPrompt, lang);
 
-      // Build cards
+      // Build cards IN THIS PARTICIPANT'S PLAY ORDER, numbered 1..6.
+      // Before a participant is chosen, the canonical order is shown.
+      const order = stored.participantId
+        ? CogGamesExperiment.orderFor(stored.participantId)
+        : CogGamesExperiment.GAMES;
+
       const grid = document.getElementById('grid');
       grid.innerHTML = '';
-      GAMES.forEach((g, i) => {
+      order.forEach((entry, i) => {
+        const g = GAMES.find(x => x.folder === entry.folder);
         const a = document.createElement('a');
         a.className = 'card';
         a.href = `${S.tree}/${g.folder}/index.html`;
         a.addEventListener('click', (ev) => {
           if (!sessionComplete()) { ev.preventDefault(); refreshLock(); }
-          else saveSession();  // ensure latest values are persisted before navigating
         });
         const num = document.createElement('span');
         num.className = 'num';
-        num.textContent = lang === 'fa' ? String(i + 1).replace(/[0-9]/g, d => '۰۱۲۳۴۵۶۷۸۹'[+d]) : String(i + 1);
+        num.textContent = localizeNum(i + 1, lang);
         const h2 = document.createElement('h2');
         h2.textContent = g[lang].name;
         const p = document.createElement('p');
@@ -401,9 +413,24 @@
       refreshLock();
     }
 
-    // Persist on every edit
-    ['inPart', 'inSess', 'inMusic'].forEach(id =>
-      document.getElementById(id).addEventListener('input', saveSession));
+    /* Populate a number picker, preserving the stored selection. */
+    function fillNumberSelect(id, values, selected, prompt, lang) {
+      const sel = document.getElementById(id);
+      sel.innerHTML = '';
+      const opt0 = document.createElement('option');
+      opt0.value = ''; opt0.textContent = prompt;
+      sel.appendChild(opt0);
+      for (const v of values) {
+        const o = document.createElement('option');
+        o.value = v; o.textContent = localizeNum(v, lang);
+        sel.appendChild(o);
+      }
+      sel.value = selected;
+    }
+
+    // Persist on every change
+    ['inPart', 'inSess'].forEach(id =>
+      document.getElementById(id).addEventListener('change', saveSession));
 
     render(currentLang);
   </script>

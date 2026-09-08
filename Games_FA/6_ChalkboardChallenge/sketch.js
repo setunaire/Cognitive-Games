@@ -347,7 +347,7 @@ function buildUI() {
     const ls = loadSessionFromStorage();
     if (ls) {
       if (famAlreadyDoneFor(ls.participantId) && !confirm(STRINGS.famAlreadyDone)) return;
-      ui.inPart.value(ls.participantId); ui.inSess.value(ls.sessionId); ui.inMusic.value(ls.musicCondition);
+      ui.inPart.value(ls.participantId); ui.inSess.value(ls.sessionId);
       onSubmitMetadata();
     } else {
       state = STATES.METADATA;
@@ -365,7 +365,6 @@ function buildUI() {
       // reuse it and skip this game's own metadata form.
       ui.inPart.value(stored.participantId);
       ui.inSess.value(stored.sessionId);
-      ui.inMusic.value(stored.musicCondition);
       onSubmitMetadata();
     } else {
       // Fallback: game opened standalone (not via the launcher) — ask here.
@@ -422,13 +421,16 @@ function layoutUI() {
   ui.btnFamContinue.size(200, 46); ui.btnFamContinue.position(cx + 10, cy + 40);
 
   ui.btnFam.size(220, 46);       ui.btnFam.position(cx - 110, cy - 46);
-  ui.btnAssess.size(220, 46);    ui.btnAssess.position(cx - 110, cy + 10);
+  ui.btnAssess.size(220, 46);
+  // Familiarization only runs in session 1; without it Assessment moves up.
+  ui.btnAssess.position(cx - 110,
+    CogGamesExperiment.familiarizationAllowed() ? cy + 10 : cy - 46);
 
   const labelX = cx - 230, inputX = cx - 60, rowH = 46;
   ui.lblPart.position(labelX, cy - 80);   ui.inPart.position(inputX, cy - 86);  ui.inPart.size(220, 22);
   ui.lblSess.position(labelX, cy - 80 + rowH);  ui.inSess.position(inputX, cy - 86 + rowH); ui.inSess.size(220, 22);
   ui.lblMusic.position(labelX, cy - 80 + rowH * 2); ui.inMusic.position(inputX, cy - 86 + rowH * 2); ui.inMusic.size(220, 22);
-  ui.btnStartExp.size(160, 42);  ui.btnStartExp.position(cx - 80, cy + 70);
+  ui.btnStartExp.size(160, 42);  ui.btnStartExp.position(cx - 80, cy + 24);
 
   ui.btnStartLevel.size(180, 46); ui.btnStartLevel.position(cx - 90, cy + 190);
   ui.btnContinue.size(180, 46);   ui.btnContinue.position(cx - 90, cy + 130);
@@ -446,7 +448,7 @@ function showOnly(group) {
 
   const groups = {
     menu: ['btnFam', 'btnAssess'],
-    metadata: ['lblPart', 'inPart', 'lblSess', 'inSess', 'lblMusic', 'inMusic', 'btnStartExp'],
+    metadata: ['lblPart', 'inPart', 'lblSess', 'inSess', 'btnStartExp'],
     instructions: ['btnStartLevel'],
     summary: ['btnContinue'],
     end: ['btnSave', 'btnReturn'],
@@ -455,6 +457,9 @@ function showOnly(group) {
     none: []
   };
   for (const k of (groups[group] || [])) ui[k].show();
+
+  // Protocol: familiarization runs once per participant, in session 1 only.
+  if (group === 'menu' && !CogGamesExperiment.familiarizationAllowed()) ui.btnFam.hide();
 }
 
 /* ---------- Canvas rendering per screen ---------- */
@@ -834,14 +839,15 @@ function generateTrial(level, largerSide) {
 /* ============================================================================
    10. TRIAL FLOW
    ========================================================================== */
-/* Read Session Information stored once by the launcher (main.html) under
-   'cogGamesSession'. Returns {participantId, sessionId, musicCondition} when all
-   three are present, else null so the game falls back to its own metadata form
-   when opened standalone. */
+/* Read Session Information stored once by the launcher (main.html) in
+   sessionStorage (not localStorage — must not survive closing the tab) under
+   'cogGamesSession'. Returns {participantId, sessionId} when both are present,
+   else null so the game falls back to its own metadata form when opened
+   standalone. The music condition is not stored: experiment.js derives it. */
 function loadSessionFromStorage() {
   try {
-    const s = JSON.parse(localStorage.getItem('cogGamesSession'));
-    if (s && s.participantId && s.sessionId && s.musicCondition) return s;
+    const s = JSON.parse(sessionStorage.getItem('cogGamesSession'));  // see main.html
+    if (s && s.participantId && s.sessionId) return s;
   } catch (e) {}
   return null;
 }
@@ -849,8 +855,13 @@ function loadSessionFromStorage() {
 function onSubmitMetadata() {
   const p = ui.inPart.value().trim();
   const s = ui.inSess.value().trim();
-  const m = ui.inMusic.value().trim();
-  if (!p || !s || !m) { metadataErrorMsg = STRINGS.metadataError; return; }
+  if (!p || !s) { metadataErrorMsg = STRINGS.metadataError; return; }
+
+  // The condition is fixed by the session schedule and this participant's
+  // game order (experiment.js). Familiarization is always run in silence.
+  const m = (pendingPhase === 'familiarization')
+    ? 'silence'
+    : CogGamesExperiment.conditionLabelFor(p, s, CONFIG.GAME_NAME);
 
   metaData = { participantId: p, sessionId: s, musicCondition: m };
   metadataErrorMsg = '';
@@ -864,8 +875,14 @@ function onSubmitMetadata() {
   levelIdx = 0;
   trialIdxGlobal = 0;
 
-  if (pendingPhase === 'familiarization') startFamiliarization();
-  else enterInstructions();
+  if (pendingPhase === 'familiarization') {
+    CogGamesExperiment.stopMusic();          // familiarization is always silent
+    startFamiliarization();
+  } else {
+    // Resumes where this condition left off earlier in the same session.
+    CogGamesExperiment.startMusic(p, s, CONFIG.GAME_NAME);
+    enterInstructions();
+  }
 }
 
 function enterInstructions() {
@@ -977,8 +994,10 @@ function continueFromSummary() {
   releaseFocus();
   levelIdx++;
   if (levelIdx >= LEVELS.length) {
+    CogGamesExperiment.stopMusic();   // music is bound to the assessment only
     state = STATES.END;
     showOnly('end');
+    exportCSV();                      // saved automatically; button re-saves
   } else {
     enterInstructions();
   }
@@ -1178,6 +1197,7 @@ function famDone() {
   }
   state = STATES.END;
   showOnly('endFam');
+  exportCSV();                        // saved automatically; button re-saves
 }
 /* Back to this game's phase chooser (Familiarization / Assessment) after the
    practice run. Nothing reloads the page here, so every flag the practice run
